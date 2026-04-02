@@ -47,8 +47,8 @@ if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
         st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = 0
-        st.session_state[f"adm_a_{i}"] = 0
+        st.session_state[f"adm_h_{i}"] = None  # Ora i risultati Admin partono vuoti (None)
+        st.session_state[f"adm_a_{i}"] = None  # Ora i risultati Admin partono vuoti (None)
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
@@ -120,7 +120,6 @@ def get_admin_dashboard_data():
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
-            # Lettura a ritroso infallibile per saltare righe vuote
             for row in reversed(dati_reali):
                 if len(row) >= 2 and "{" in row[1]:
                     try:
@@ -147,13 +146,24 @@ def get_admin_dashboard_data():
             punti_tot = 0
             punti_bonus = 0
             
-            # Algoritmo calcolo infallibile
             for i, m in enumerate(MATCHES):
                 match_key = f"G_{m['gr']} {m['h']}-{m['a']}"
                 if match_key in user_gironi and match_key in reali_dict:
                     try:
-                        u_h, u_a = int(user_gironi[match_key][0]), int(user_gironi[match_key][1])
-                        r_h, r_a = int(reali_dict[match_key][0]), int(reali_dict[match_key][1])
+                        u_h_val = user_gironi[match_key][0]
+                        u_a_val = user_gironi[match_key][1]
+                        r_h_val = reali_dict[match_key][0]
+                        r_a_val = reali_dict[match_key][1]
+                        
+                        # IGNORA COMPLETAMENTE SE L'ADMIN NON HA INSERITO IL RISULTATO
+                        if r_h_val is None or r_a_val is None or r_h_val == "" or r_a_val == "":
+                            continue
+                            
+                        # Considera 0 se l'utente non ha inserito nulla
+                        u_h = int(u_h_val) if u_h_val not in [None, ""] else 0
+                        u_a = int(u_a_val) if u_a_val not in [None, ""] else 0
+                        
+                        r_h, r_a = int(r_h_val), int(r_a_val)
                         
                         p1 = RANKING.get(m['h'], 0)
                         p2 = RANKING.get(m['a'], 0)
@@ -177,6 +187,7 @@ def get_admin_dashboard_data():
             
         df = pd.DataFrame(classifica)
         if not df.empty:
+            df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
             df.index += 1
         return df, nomi_utenti, ws_pro
@@ -184,7 +195,6 @@ def get_admin_dashboard_data():
         return pd.DataFrame(), [], None
 
 def elimina_utente(ws, row_index):
-    # Comando universale a prova di aggiornamento gspread
     try:
         ws.delete_rows(row_index)
         return True
@@ -201,6 +211,12 @@ def calcola_classifiche(prefisso=""):
     for i, m in enumerate(MATCHES):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
+        
+        # Protezione vitale per Admin: Salta le partite vuote (None) per non fare crashare i calcoli
+        if h is None or a is None or h == "" or a == "":
+            continue
+            
+        h, a = int(h), int(a)
         
         stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
         stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
@@ -376,7 +392,13 @@ if user:
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            adm_tabs = st.tabs(["📊 Ranking Partecipanti & Gestione", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
+            
+            # Messaggio di conferma post-salvataggio Admin
+            if st.session_state.get("admin_saved_success"):
+                st.success("✅ Risultati Reali salvati nel database! La classifica è aggiornata.")
+                st.session_state["admin_saved_success"] = False
+
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
@@ -413,7 +435,8 @@ if user:
                             st.write("<br>", unsafe_allow_html=True)
                             if st.button("🗑️ Elimina", type="primary"):
                                 if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
-                                    st.success(f"{utente_da_eliminare[0]} eliminato! Clicca di nuovo sul Tab 'Ranking' per ricaricare.")
+                                    st.success(f"{utente_da_eliminare[0]} eliminato! La pagina si sta ricaricando...")
+                                    st.rerun() # Refresh automatico all'eliminazione
                                 else:
                                     st.error("Errore di comunicazione con Google Sheets durante l'eliminazione.")
                 else:
@@ -428,7 +451,7 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # Layout Compatto Risultati Reali
+                # Input in bianco di default con value=None
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -438,8 +461,8 @@ if user:
                             with cols[c]:
                                 st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
                                 ci1, ci2 = st.columns(2)
-                                ci1.number_input("H", 0, 9, key=f"adm_h_{idx}", label_visibility="collapsed")
-                                ci2.number_input("A", 0, 9, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed")
+                                ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
                                 st.markdown("</div>", unsafe_allow_html=True)
                         
             with adm_tabs[2]:
@@ -451,15 +474,22 @@ if user:
                     payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
                     
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
-                        st.success("Risultati Reali salvati con successo!")
+                        st.session_state["admin_saved_success"] = True
+                        st.rerun() # Refresh automatico per aggiornare la classifica in tempo reale
 
     # --- INVIO ---
     with tabs[3]:
         st.write("### 🚀 Fase Finale")
+        
+        if st.session_state.get("user_saved_success"):
+            st.success("✅ Pronostici e Tabellone inviati con successo!")
+            st.session_state["user_saved_success"] = False
+
         if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
             payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
             chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
             payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
             
             if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
-                st.success("Pronostici e Tabellone inviati con successo!")
+                st.session_state["user_saved_success"] = True
+                st.rerun()
