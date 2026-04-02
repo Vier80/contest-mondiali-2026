@@ -6,42 +6,45 @@ import random
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
+st.set_page_config(page_title="WC 2026 Prediction PRO", layout="wide")
 
-# LOGO E COLORI
+# LOGO UFFICIALE
 LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/2026_FIFA_World_Cup_logo.svg/512px-2026_FIFA_World_Cup_logo.svg.png"
 
-# CSS: STILE DARK AD ALTO CONTRASTO
+# CSS: DESIGN DARK PROFESSIONALE
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     
-    .stApp {{ background-color: #0e1117; color: #ffffff; font-family: 'Inter', sans-serif; }}
+    .stApp {{ background-color: #0b0e14; color: #e2e8f0; font-family: 'Inter', sans-serif; }}
     
-    /* Ingrandimento TAB e contrasto */
-    button[data-baseweb="tab"] p {{ font-size: 20px !important; font-weight: 700 !important; color: #adbac7 !important; }}
-    button[data-baseweb="tab"][aria-selected="true"] p {{ color: #58a6ff !important; }}
+    /* Ingrandimento TAB */
+    button[data-baseweb="tab"] p {{ font-size: 22px !important; font-weight: 700 !important; }}
+    button[data-baseweb="tab"][aria-selected="true"] {{ border-bottom-color: #00f2ff !important; }}
+    button[data-baseweb="tab"][aria-selected="true"] p {{ color: #00f2ff !important; }}
 
-    /* Card Partite */
+    /* Card Partite Professionale */
     .match-card {{
-        background: #161b22; border-radius: 12px; padding: 20px; border: 1px solid #30363d; margin-bottom: 15px;
+        background: #1a1f29; border-radius: 15px; padding: 20px; border: 1px solid #2d3748;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); margin-bottom: 20px;
     }}
     
-    /* Badge Ranking (Punteggi 1X2) */
-    .ranking-badge {{
-        background: #238636; color: #ffffff; border-radius: 6px; font-size: 12px; font-weight: 800;
-        padding: 6px; text-align: center; margin-bottom: 10px;
+    /* Punteggi Ranking */
+    .ranking-box {{
+        background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+        color: white; border-radius: 8px; font-size: 12px; font-weight: 800;
+        padding: 5px 10px; text-align: center; margin-bottom: 15px;
     }}
 
-    /* Input Numerici (Grandi e Bianchi) */
+    /* Input Numerici Estetici */
     input[type="number"] {{
-        background-color: #0d1117 !important; color: #ffffff !important;
-        font-size: 24px !important; font-weight: 900 !important; border: 2px solid #30363d !important;
-        text-align: center !important; border-radius: 8px !important;
+        background-color: #0f172a !important; color: #ffffff !important;
+        font-size: 26px !important; font-weight: 900 !important; border: 2px solid #334155 !important;
+        text-align: center !important; border-radius: 10px !important; width: 80px !important;
     }}
     
-    .team-label {{ font-size: 14px; font-weight: 700; color: #ffffff; text-align: center; }}
-    .vs-text {{ color: #8b949e; font-weight: 900; font-size: 20px; }}
+    .team-label {{ font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; margin-top: 10px; }}
+    .vs-line {{ color: #64748b; font-weight: 900; font-size: 24px; padding-top: 10px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,9 +58,8 @@ RANKING = {
     "Colombia": 13, "Inghilterra": 4, "Croazia": 10, "Ghana": 72, "Panama": 30, "Italia": 13
 }
 
-@st.cache_data
-def get_matches_data():
-    g = {
+def get_groups():
+    return {
         "A": ["Messico", "Sudafrica", "Sudcorea", "Repubblica Ceca"], "B": ["Canada", "Bosnia Erzegovina", "Qatar", "Svizzera"],
         "C": ["Brasile", "Marocco", "Haiti", "Scozia"], "D": ["USA", "Paraguay", "Australia", "Turchia"],
         "E": ["Germania", "Curacao", "Costa D'Avorio", "Ecuador"], "F": ["Olanda", "Giappone", "Svezia", "Tunisia"],
@@ -65,75 +67,76 @@ def get_matches_data():
         "I": ["Francia", "Senegal", "Iraq", "Norvegia"], "J": ["Argentina", "Algeria", "Austria", "Giordania"],
         "K": ["Portogallo", "DR Congo", "Uzbekistan", "Colombia"], "L": ["Inghilterra", "Croazia", "Ghana", "Panama"]
     }
+
+def get_matches():
+    g = get_groups()
     ml = []
     for gid, teams in g.items():
         for h, a in [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]:
             ml.append({"gr": gid, "h": teams[h], "a": teams[a]})
-    return g, ml
+    return ml
 
-G_TEAMS, MATCHES = get_matches_data()
+MATCHES = get_matches()
 
 def get_flag(t):
-    if not t or t == "???" or t == "Non assegnato": return "https://flagcdn.com/w160/un.png"
+    if not t or t == "???" or t == "TBD": return "https://flagcdn.com/w160/un.png"
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 3. GOOGLE SHEETS CONNECTION ---
-def salva_dati_google(sheet_name, nick, dati):
+# --- 3. LOGICA DATABASE ---
+def salva_gspread(sheet_name, nick, data):
     try:
-        info = json.loads(st.secrets["service_account"])
-        creds = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+        cred_info = json.loads(st.secrets["service_account"])
+        creds = Credentials.from_service_account_info(cred_info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
-        # ID FOGLIO (Estrailo dal tuo URL)
         URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0"
         sh = client.open_by_url(URL_FOGLIO)
-        try: ws = sh.worksheet(sheet_name)
-        except: ws = sh.get_worksheet(0)
-        ws.append_row([nick, json.dumps(dati)])
+        ws = sh.worksheet(sheet_name) if sheet_name in [w.title for w in sh.worksheets()] else sh.get_worksheet(0)
+        ws.append_row([nick, json.dumps(data)])
         return True
     except Exception as e:
         st.error(f"Errore Google Sheets: {e}")
         return False
 
-# --- 4. LOGICA CLASSICHE ---
-def calcola_classifiche():
-    res = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
+# --- 4. CALCOLO CLASSIFICHE ---
+def update_standings():
+    groups = get_groups()
+    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in groups.items()}
     for i, m in enumerate(MATCHES):
         h_g = st.session_state.get(f"h_{i}", 0)
         a_g = st.session_state.get(f"a_{i}", 0)
-        sh, sa = res[m['gr']][m['h']], res[m['gr']][m['a']]
+        sh, sa = stats[m['gr']][m['h']], stats[m['gr']][m['a']]
         sh["GF"] += h_g; sa["GF"] += a_g
         sh["DR"] += (h_g - a_g); sa["DR"] += (a_g - h_g)
         if h_g > a_g: sh["Pt"] += 3
         elif a_g > h_g: sa["Pt"] += 3
         else: sh["Pt"] += 1; sa["Pt"] += 1
     
-    final_ranks = {}
-    thirds = []
-    for gid, ts in res.items():
-        df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-        final_ranks[gid] = df.index.tolist()
-        thirds.append({"team": df.index[2], "Pt": df.iloc[2]["Pt"], "gr": gid})
-    return final_ranks, pd.DataFrame(thirds).sort_values("Pt", ascending=False).head(8), res
+    ranks = {}
+    for g, ts in stats.items():
+        ranks[g] = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False).index.tolist()
+    return ranks, stats
 
 # --- 5. INTERFACCIA ---
-col_logo, col_adm = st.columns([7, 3])
-with col_logo: st.image(LOGO_URL, width=200)
-with col_adm: 
-    adm_pass = st.text_input("🔓 Admin Area", type="password", placeholder="Password...")
-    is_admin = (adm_pass == "mondiali2026")
+st.image(LOGO_URL, width=140)
+st.title("🏆 World Cup 2026 Prediction PRO")
 
-user_nick = st.text_input("👤 Nickname Partecipante:", placeholder="Inserisci il tuo nome...")
+# Login Admin in alto a DX
+with st.sidebar:
+    st.write("### 🔒 Area Riservata")
+    admin_pw = st.text_input("Password Admin", type="password")
+    is_admin = (admin_pw == "mondiali2026")
+
+user_nick = st.text_input("👤 Nickname Partecipante:", placeholder="Inserisci nome...")
 
 if user_nick:
-    tab_list = ["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"]
-    if is_admin: tab_list.append("⚙️ Admin & Ranking")
-    tabs = st.tabs(tab_list)
+    tab_labels = ["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"]
+    if is_admin: tab_labels.append("⚙️ Admin")
+    tabs = st.tabs(tab_labels)
 
-    # --- TAB GIRONI ---
-    with tabs[0]:
-        st.info("Inserisci i risultati. I punti 1-X-2 sono calcolati in base al Ranking FIFA.")
-        if st.button("🪄 Compilazione Automatica (Risultati casuali)"):
+    with tabs[0]: # GIRONI
+        st.subheader("Fase a Gironi")
+        if st.button("🪄 Compilazione Automatica Risultati"):
             for i in range(72):
                 st.session_state[f"h_{i}"] = random.randint(0, 4)
                 st.session_state[f"a_{i}"] = random.randint(0, 4)
@@ -147,91 +150,92 @@ if user_nick:
                     m = MATCHES[idx]
                     p1, p2, px = RANKING[m['a']], RANKING[m['h']], (RANKING[m['h']]+RANKING[m['a']])//2
                     with cols[c]:
-                        with st.container(border=True):
-                            st.markdown(f"<div class='ranking-badge'>PUNTI: 1={p1} | X={px} | 2={p2}</div>", unsafe_allow_html=True)
-                            
-                            # Layout Orizzontale Score
-                            sc1, sc_in1, sc_vs, sc_in2, sc2 = st.columns([1, 1.3, 0.4, 1.3, 1])
-                            sc1.image(get_flag(m['h']), width=35)
-                            sc_in1.number_input("H", 0, 9, key=f"h_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
-                            sc_vs.markdown("<p style='padding-top:10px; text-align:center;'>-</p>", unsafe_allow_html=True)
-                            sc_in2.number_input("A", 0, 9, key=f"a_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
-                            sc2.image(get_flag(m['a']), width=35)
-                            
-                            st.markdown(f"<p class='team-label'>{m['h']} vs {m['a']}</p>", unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="match-card">
+                            <div class="ranking-box">Punti: 1={p1} | X={px} | 2={p2}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        c1, s1, vs, s2, c2 = st.columns([1, 1.5, 0.5, 1.5, 1])
+                        c1.image(get_flag(m['h']), width=35)
+                        st.session_state[f"h_{idx}"] = s1.number_input("H", 0, 9, key=f"in_h_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
+                        vs.markdown("<div class='vs-line'>-</div>", unsafe_allow_html=True)
+                        st.session_state[f"a_{idx}"] = s2.number_input("A", 0, 9, key=f"in_a_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
+                        c2.image(get_flag(m['a']), width=35)
+                        st.markdown(f"<div class='team-label'>{m['h']} vs {m['a']}</div>", unsafe_allow_html=True)
 
-    # --- TAB BRACKET TENNISTICO ---
-    with tabs[2]:
-        ranks, th_df, _ = calcola_classifiche()
-        th_dict = {row['gr']: row['team'] for _, row in th_df.iterrows()}
+    with tabs[1]: # CLASSIFICHE
+        ranks, stats = update_standings()
+        for i in range(0, 12, 3):
+            cols = st.columns(3)
+            for k in range(3):
+                gid = list(get_groups().keys())[i+k]
+                df = pd.DataFrame(stats[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
+                cols[k].write(f"### Gruppo {gid}")
+                cols[k].dataframe(df.style.background_gradient(cmap='Blues'), use_container_width=True)
+
+    with tabs[2]: # BRACKET
+        ranks, _ = update_standings()
         
-        def render_match_box(t1, t2, mid, label):
+        def bracket_match(t1, t2, b_id, label):
             with st.container(border=True):
                 st.caption(label)
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.image(get_flag(t1), width=40)
-                    if st.button(f"{t1}", key=f"btn1_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid) == t1 else "secondary"):
-                        st.session_state[mid] = t1; st.rerun()
-                with c2:
-                    st.image(get_flag(t2), width=40)
-                    if st.button(f"{t2}", key=f"btn2_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid) == t2 else "secondary"):
-                        st.session_state[mid] = t2; st.rerun()
-                return st.session_state.get(mid, "???")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.image(get_flag(t1), width=45)
+                    if st.button(f"{t1}", key=f"bt1_{b_id}", use_container_width=True, type="primary" if st.session_state.get(b_id) == t1 else "secondary"):
+                        st.session_state[b_id] = t1; st.rerun()
+                with col2:
+                    st.image(get_flag(t2), width=45)
+                    if st.button(f"{t2}", key=f"bt2_{b_id}", use_container_width=True, type="primary" if st.session_state.get(b_id) == t2 else "secondary"):
+                        st.session_state[b_id] = t2; st.rerun()
+                return st.session_state.get(b_id, "TBD")
 
-        # Layout Tennistico SX -> DX
-        st.subheader("⚔️ Tabellone Eliminazione Diretta")
-        c_sed, c_ott, c_qua, c_fin = st.columns([1.2, 1.1, 1.1, 1.4])
-        
+        if st.button("🪄 Compilazione Automatica Bracket"):
+            st.session_state["S1"] = random.choice([ranks["A"][1], ranks["C"][1]])
+            st.session_state["S2"] = ranks["D"][0]
+            st.session_state["O1"] = random.choice([st.session_state["S1"], st.session_state["S2"]])
+            # ... simula resto del bracket
+            st.rerun()
+
+        st.write("### ⚔️ Tabellone Eliminazione Diretta")
+        c_sed, c_ott, c_qua, c_fin = st.columns(4)
         with c_sed:
-            st.write("📌 Sedicesimi")
-            v_s1 = render_match_box(ranks["A"][1], ranks["C"][1], "S1", "Match 1")
-            v_s2 = render_match_box(ranks["D"][0], "3rd Group", "S2", "Match 2")
-
+            st.info("Sedicesimi")
+            v_s1 = bracket_match(ranks["A"][1], ranks["C"][1], "S1", "Match 1")
+            v_s2 = bracket_match(ranks["D"][0], "3rd Group", "S2", "Match 2")
         with c_ott:
-            st.write("🎯 Ottavi")
-            v_o1 = render_match_box(v_s1, v_s2, "O1", "Ottavo 1")
-
+            st.info("Ottavi")
+            v_o1 = bracket_match(v_s1, v_s2, "O1", "Ottavo 1")
         with c_qua:
-            st.write("💎 Quarti")
-            v_q1 = render_match_box(v_o1, "TBD", "Q1", "Quarto 1")
-
+            st.info("Quarti")
+            v_q1 = bracket_match(v_o1, "Vinc. O2", "Q1", "Quarto 1")
         with c_fin:
-            st.write("🔥 Semifinali e Finale")
-            v_semi1 = render_match_box(v_q1, "TBD", "semi1", "Semi 1")
+            st.info("Fasi Finali")
+            v_semi1 = bracket_match(v_q1, "Vinc. Q2", "semi1", "Semi 1")
             st.divider()
-            campione = render_match_box(v_semi1, "Finalista 2", "win", "🏆 CAMPIONE")
-            st.session_state["campione"] = campione
-            if campione != "???" and campione != "": st.balloons()
+            campione = st.selectbox("🏆 SCEGLI IL CAMPIONE", [v_semi1, "Finalista 2"])
+            st.session_state["vincitore"] = campione
+            if campione != "TBD": st.balloons()
 
-    # --- TAB AREA ADMIN ---
-    if is_admin:
+    with tabs[3]: # INVIA
+        if st.button("🚀 INVIA PRONOSTICI DEFINITIVAMENTE", use_container_width=True, type="primary"):
+            dati = {
+                "g": {i: [st.session_state.get(f"h_{i}"), st.session_state.get(f"a_{i}")] for i in range(72)},
+                "v": st.session_state.get("vincitore")
+            }
+            if salva_gspread("Pronostici", user_nick, dati):
+                st.success("Pronostici salvati! Buona fortuna!")
+
+    if is_admin: # AREA ADMIN
         with tabs[-1]:
-            st.header("⚙️ Area Gestione Admin")
-            if st.button("🪄 Auto-compila Risultati Reali (Test)"):
+            st.header("👑 Dashboard Admin")
+            st.subheader("Classifica Partecipanti")
+            # Simulazione classifica (qui andrebbe la logica di lettura gspread)
+            st.dataframe(pd.DataFrame({"User": ["Luca", "Marco"], "Punti": [120, 95]}), use_container_width=True)
+            
+            st.divider()
+            if st.button("🪄 TEST: Compila Risultati Reali Admin"):
                 for i in range(72):
                     st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
                     st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                 st.rerun()
-            
-            st.subheader("📊 Classifica Partecipanti")
-            # Qui andrebbe la logica di calcolo punti leggendo il foglio 'Pronostici'
-            st.info("I punti verranno calcolati confrontando i pronostici salvati con i risultati reali.")
-
-            with st.expander("Inserisci Risultati Reali"):
-                for i, m in enumerate(MATCHES):
-                    c1, c2 = st.columns(2)
-                    st.session_state[f"adm_h_{i}"] = c1.number_input(f"{m['h']}", 0, 9, key=f"ah_{i}")
-                    st.session_state[f"adm_a_{i}"] = c2.number_input(f"{m['a']}", 0, 9, key=f"aa_{i}")
-
-    # --- TAB INVIO ---
-    with tabs[3]:
-        st.write("### 🚀 Pronti per l'invio?")
-        if st.button("SALVA PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            payload = {
-                "Gironi": {f"M_{i}": [st.session_state.get(f"h_{i}"), st.session_state.get(f"a_{i}")] for i in range(72)},
-                "Vincitore": st.session_state.get("campione")
-            }
-            if salva_dati_google("Pronostici", user_nick, payload):
-                st.balloons()
-                st.success("Tutto salvato! In bocca al lupo!")
