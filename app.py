@@ -4,10 +4,11 @@ import json
 import gspread
 import random
 import re
+import urllib.parse
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE E GRAFICA ---
-st.set_page_config(page_title="FIFA World Cup 2026 Contest", layout="wide")
+st.set_page_config(page_title="WC 2026 Contest", layout="wide")
 
 st.markdown("""
 <style>
@@ -112,7 +113,6 @@ def get_admin_dashboard_data():
         dati_utenti = ws_pro.get_all_values()
         if not dati_utenti: return pd.DataFrame(), [], ws_pro
         
-        # Recupera ultimi risultati reali salvati dall'admin
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
@@ -126,7 +126,7 @@ def get_admin_dashboard_data():
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
             nick = row[0]
-            nomi_utenti.append((nick, idx + 1)) # Salvo l'indice reale della riga per l'eliminazione
+            nomi_utenti.append((nick, idx + 1))
             try: user_data = json.loads(row[1])
             except: continue
             
@@ -136,35 +136,39 @@ def get_admin_dashboard_data():
             
             for match_key, scores in user_gironi.items():
                 if match_key in reali_dict:
-                    u_h, u_a = scores[0], scores[1]
-                    r_h, r_a = reali_dict[match_key][0], reali_dict[match_key][1]
-                    
-                    # Estrae i nomi delle squadre dalla chiave (Es: "G_A Messico-Sudafrica")
-                    team_str = match_key.split(" ")[1]
-                    h_team, a_team = team_str.split("-")[0], team_str.split("-")[1]
-                    
-                    p1 = RANKING.get(h_team, 0)
-                    p2 = RANKING.get(a_team, 0)
-                    px = (p1 + p2) // 2
-                    
-                    # Calcolo Esito
-                    u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
-                    r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
-                    
-                    if u_esito == r_esito:
-                        if r_esito == 1: punti_tot += p1
-                        elif r_esito == 2: punti_tot += p2
-                        else: punti_tot += px
-                    
-                    # Calcolo Bonus Risultato Esatto
-                    if u_h == r_h and u_a == r_a:
-                        punti_tot += 50
-                        punti_bonus += 50
+                    try:
+                        u_h, u_a = scores[0], scores[1]
+                        r_h, r_a = reali_dict[match_key][0], reali_dict[match_key][1]
+                        
+                        # CORREZIONE BUG NOMI SQUADRE CON SPAZI:
+                        # Estrae in modo sicuro saltando i primi 4 caratteri (Es: "G_A ")
+                        team_str = match_key[4:] 
+                        h_team, a_team = team_str.split("-")[0], team_str.split("-")[1]
+                        
+                        p1 = RANKING.get(h_team, 0)
+                        p2 = RANKING.get(a_team, 0)
+                        px = (p1 + p2) // 2
+                        
+                        u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
+                        r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
+                        
+                        if u_esito == r_esito:
+                            if r_esito == 1: punti_tot += p1
+                            elif r_esito == 2: punti_tot += p2
+                            else: punti_tot += px
+                        
+                        if u_h == r_h and u_a == r_a:
+                            punti_tot += 50
+                            punti_bonus += 50
+                    except Exception:
+                        continue
                         
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
         df = pd.DataFrame(classifica)
         if not df.empty:
+            # Mostra solo l'ultimo invio per ogni utente
+            df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
             df.index += 1
         return df, nomi_utenti, ws_pro
@@ -173,7 +177,7 @@ def get_admin_dashboard_data():
 
 def elimina_utente(ws, row_index):
     try:
-        ws.delete_rows(row_index)
+        ws.delete_row(row_index) # Funzione stabile per Gspread
         return True
     except: return False
 
@@ -364,6 +368,23 @@ if user:
                 
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
+                    
+                    # --- TASTO CONDIVIDI WHATSAPP ---
+                    st.write("<br>", unsafe_allow_html=True)
+                    wa_text = "🏆 *CLASSIFICA MONDIALE 2026* 🏆\n\n"
+                    for i, r in df_ranking.iterrows():
+                        wa_text += f"*{i}. {r['Partecipante']}* - {r['Punti Totali']} pt (Bonus: {r['Bonus Esatti']})\n"
+                    wa_text += "\n⚽ Generato dalla Master App!"
+                    wa_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(wa_text)}"
+                    
+                    st.markdown(f"""
+                    <a href="{wa_url}" target="_blank" style="text-decoration:none;">
+                        <div style="background-color:#25D366; color:white; padding:10px 20px; border-radius:8px; text-align:center; font-weight:bold; width:250px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            💬 Condividi su WhatsApp
+                        </div>
+                    </a>
+                    """, unsafe_allow_html=True)
+                    
                     st.divider()
                     st.write("#### Gestione Utenti")
                     col_del1, col_del2 = st.columns([2, 1])
@@ -375,7 +396,7 @@ if user:
                             if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
                                 st.success(f"{utente_da_eliminare[0]} eliminato! Ricarica la pagina.")
                 else:
-                    st.info("Nessun dato o classifica ancora disponibile.")
+                    st.info("Nessun dato o classifica ancora disponibile. Attendi che i partecipanti salvino i pronostici.")
 
             with adm_tabs[1]:
                 col_btn_test, _ = st.columns([1, 2])
@@ -404,7 +425,7 @@ if user:
                 render_wimbledon(prefisso="adm_")
                 st.divider()
                 if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary", use_container_width=True):
-                    # Salva nome partita nel payload per Google Sheets
+                    # Salva nome partita nel payload per maggiore chiarezza su Google Sheets
                     payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"adm_h_{i}"], st.session_state[f"adm_a_{i}"]] for i in range(72)}
                     
                     chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
@@ -417,7 +438,6 @@ if user:
     with tabs[3]:
         st.write("### 🚀 Fase Finale")
         if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            # Salva nome partita nel payload utente per chiarezza su Google Sheets
             payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
             
             chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
