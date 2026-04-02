@@ -3,12 +3,11 @@ import pandas as pd
 import json
 import gspread
 import random
-import re
 import urllib.parse
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE E GRAFICA ---
-st.set_page_config(page_title="WC 2026 Contest", layout="wide")
+st.set_page_config(page_title="FIFA World Cup 2026 Contest", layout="wide")
 
 st.markdown("""
 <style>
@@ -47,12 +46,19 @@ if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
         st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = None  # Parte rigorosamente in bianco
-        st.session_state[f"adm_a_{i}"] = None  # Parte rigorosamente in bianco
+        st.session_state[f"adm_h_{i}"] = None  # Parte vuoto
+        st.session_state[f"adm_a_{i}"] = None  # Parte vuoto
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
     st.session_state["initialized"] = True
+
+# FORZATURA RESET ZERI ADMIN (Spazza via i vecchi 0-0 rimasti in memoria nel browser)
+if "admin_force_blank" not in st.session_state:
+    for i in range(72):
+        if st.session_state.get(f"adm_h_{i}") == 0: st.session_state[f"adm_h_{i}"] = None
+        if st.session_state.get(f"adm_a_{i}") == 0: st.session_state[f"adm_a_{i}"] = None
+    st.session_state["admin_force_blank"] = True
 
 # --- 3. RANKING E DATI ---
 RANKING = {
@@ -105,6 +111,10 @@ def invia_google_sheets(tab_name, nick, dati):
         st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API e i permessi.")
         return False
 
+def safe_json_parse(val):
+    try: return json.loads(val)
+    except: return {}
+
 def get_admin_dashboard_data():
     try:
         gc = get_gspread_client()
@@ -117,64 +127,61 @@ def get_admin_dashboard_data():
         dati_utenti = ws_pro.get_all_values()
         if not dati_utenti: return pd.DataFrame(), [], ws_pro
         
+        # MOTORE DI ESTRAZIONE RISULTATI REALI CORAZZATO (Supporta formati vecchi e nuovi)
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
             for row in reversed(dati_reali):
-                if len(row) >= 2 and "{" in row[1]:
-                    try:
-                        last_real_json = json.loads(row[1])
-                        if "Gironi" in last_real_json:
-                            reali_dict = last_real_json["Gironi"]
-                            break
-                    except:
-                        pass
+                if len(row) >= 2:
+                    data = safe_json_parse(row[1])
+                    if "Gironi" in data:
+                        reali_dict = data["Gironi"]
+                        break
+                    elif "0" in data or "G_A Messico-Sudafrica" in data:
+                        reali_dict = data
+                        break
 
         classifica = []
         nomi_utenti = []
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
-            if "{" not in row[1]: continue
             
             nick = row[0]
+            user_data = safe_json_parse(row[1])
+            if not user_data: continue
             nomi_utenti.append((nick, idx + 1))
-            try: user_data = json.loads(row[1])
-            except: continue
             
-            user_gironi = user_data.get("Gironi", {})
+            # Gestione corazzata del salvataggio utente
+            user_gironi = user_data.get("Gironi", user_data)
             punti_tot = 0
             punti_bonus = 0
             
-            # --- MOTORE DI LETTURA BLINDATO UNIVERSALE ---
+            # MOTORE DI LETTURA PUNTI (Infallibile sia per vecchie chiavi numeriche che stringhe)
             for i, m in enumerate(MATCHES):
                 match_key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                 match_key_num = str(i)
                 
-                # Cerca i dati del partecipante (sia formato vecchio che nuovo)
-                u_vals = None
-                if match_key_str in user_gironi: u_vals = user_gironi[match_key_str]
-                elif match_key_num in user_gironi: u_vals = user_gironi[match_key_num]
+                # Cerca i valori ovunque siano
+                u_vals = user_gironi.get(match_key_str)
+                if u_vals is None: u_vals = user_gironi.get(match_key_num)
                 
-                # Cerca i dati reali salvati dall'admin (sia formato vecchio che nuovo)
-                r_vals = None
-                if match_key_str in reali_dict: r_vals = reali_dict[match_key_str]
-                elif match_key_num in reali_dict: r_vals = reali_dict[match_key_num]
+                r_vals = reali_dict.get(match_key_str)
+                if r_vals is None: r_vals = reali_dict.get(match_key_num)
                 
-                if u_vals and r_vals:
+                if u_vals is not None and r_vals is not None:
                     try:
-                        u_h_val, u_a_val = u_vals[0], u_vals[1]
                         r_h_val, r_a_val = r_vals[0], r_vals[1]
                         
-                        # SALTA in tronco se l'Admin ha lasciato in bianco
-                        if r_h_val is None or r_a_val is None or r_h_val == "" or r_a_val == "":
+                        # IGNORA PARTITA SE L'ADMIN HA LASCIATO IN BIANCO
+                        if r_h_val is None or r_a_val is None or str(r_h_val).strip() == "" or str(r_a_val).strip() == "":
                             continue
                             
-                        # Considera 0 se eccezionalmente un utente ha i campi vuoti
-                        u_h = int(u_h_val) if u_h_val not in [None, ""] else 0
-                        u_a = int(u_a_val) if u_a_val not in [None, ""] else 0
+                        r_h, r_a = int(float(r_h_val)), int(float(r_a_val))
                         
-                        r_h, r_a = int(r_h_val), int(r_a_val)
+                        u_h_val, u_a_val = u_vals[0], u_vals[1]
+                        u_h = int(float(u_h_val)) if u_h_val not in [None, ""] else 0
+                        u_a = int(float(u_a_val)) if u_a_val not in [None, ""] else 0
                         
                         p1 = RANKING.get(m['h'], 0)
                         p2 = RANKING.get(m['a'], 0)
@@ -183,13 +190,13 @@ def get_admin_dashboard_data():
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
                         
-                        # ASSEGNAZIONE PUNTI RANKING
+                        # Calcolo Punti Ranking
                         if u_esito == r_esito:
                             if r_esito == 1: punti_tot += p1
                             elif r_esito == 2: punti_tot += p2
                             else: punti_tot += px
                         
-                        # ASSEGNAZIONE BONUS RISULTATO ESATTO
+                        # Calcolo Punti Bonus
                         if u_h == r_h and u_a == r_a:
                             punti_tot += 50
                             punti_bonus += 50
@@ -200,25 +207,19 @@ def get_admin_dashboard_data():
             
         df = pd.DataFrame(classifica)
         if not df.empty:
-            # Elimina doppioni, tenendo valida l'ultima riga inviata
             df = df.groupby('Partecipante', as_index=False).last()
-            df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
+            df = df.sort_values(by=["Punti Totali", "Bonus Esatti"], ascending=[False, False]).reset_index(drop=True)
             df.index += 1
         return df, nomi_utenti, ws_pro
     except Exception as e:
         return pd.DataFrame(), [], None
 
 def elimina_utente(ws, row_index):
-    # Doppio comando blindato per sopperire agli aggiornamenti di gspread
-    try:
-        ws.delete_row(int(row_index))
-        return True
+    try: ws.delete_row(int(row_index))
     except:
-        try:
-            ws.delete_rows(int(row_index))
-            return True
-        except:
-            return False
+        try: ws.delete_rows(int(row_index))
+        except: return False
+    return True
 
 # --- 5. CALCOLI CLASSIFICHE GIRONI (UI) ---
 def calcola_classifiche(prefisso=""):
@@ -227,8 +228,8 @@ def calcola_classifiche(prefisso=""):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
         
-        # Protezione: salta i vuoti dell'Admin per evitare crash
-        if h is None or a is None or h == "" or a == "":
+        # Protezione per Admin UI per non fare crashare la classifica con campi vuoti
+        if h is None or a is None or str(h).strip() == "" or str(a).strip() == "":
             continue
             
         h, a = int(h), int(a)
@@ -316,15 +317,12 @@ if user:
     # --- TAB BRACKET (TORNEO INTERO) ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
-        
         def s_t(g, pos):
             try: return ranks[g][pos]
             except: return "TBD"
-            
         def s_t3(index):
             try: return terze_list[index]
             except: return "TBD"
-            
         def t_box(t1, t2, mid):
             with st.container(border=True):
                 st.markdown(f"<div style='font-size:10px; color:#94a3b8; font-weight:700;'>{mid}</div>", unsafe_allow_html=True)
@@ -418,11 +416,9 @@ if user:
                 st.write("### Classifica Ufficiale")
                 df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
                 
-                # Se la classifica NON è vuota, la mostra e mostra il tasto Whatsapp
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
                     
-                    # --- TASTO CONDIVIDI WHATSAPP ---
                     st.write("<br>", unsafe_allow_html=True)
                     wa_text = "🏆 *CLASSIFICA MONDIALE 2026* 🏆\n\n"
                     for i, r in df_ranking.iterrows():
@@ -445,15 +441,15 @@ if user:
                     if nomi_utenti:
                         col_del1, col_del2 = st.columns([2, 1])
                         with col_del1:
-                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga Foglio: {x[1]})")
+                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga {x[1]})")
                         with col_del2:
                             st.write("<br>", unsafe_allow_html=True)
                             if st.button("🗑️ Elimina", type="primary"):
                                 if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
                                     st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
-                                    st.rerun() # Forza il refresh subito dopo la cancellazione
+                                    st.rerun() 
                                 else:
-                                    st.error("Errore di comunicazione con Google Sheets durante l'eliminazione.")
+                                    st.error("Errore durante l'eliminazione.")
                 else:
                     st.info("Nessun partecipante ha ancora giocato oppure nessun punteggio valido calcolato.")
 
@@ -466,7 +462,7 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # I campi admin partono senza default (value=None)
+                # Input puliti di base, calcolo ignorerà i vuoti
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -476,21 +472,21 @@ if user:
                             with cols[c]:
                                 st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
                                 ci1, ci2 = st.columns(2)
-                                ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed")
-                                ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                ci1.number_input("H", min_value=0, max_value=9, key=f"adm_h_{idx}", label_visibility="collapsed")
+                                ci2.number_input("A", min_value=0, max_value=9, key=f"adm_a_{idx}", label_visibility="collapsed")
                                 st.markdown("</div>", unsafe_allow_html=True)
                         
             with adm_tabs[2]:
                 render_wimbledon(prefisso="adm_")
                 st.divider()
                 if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary", use_container_width=True):
-                    payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"adm_h_{i}"], st.session_state[f"adm_a_{i}"]] for i in range(72)}
+                    payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
                     chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
                     payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
                     
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                         st.session_state["admin_saved_success"] = True
-                        st.rerun() # Refresh automatico per mostrare la classifica aggiornata
+                        st.rerun() 
 
     # --- INVIO ---
     with tabs[3]:
