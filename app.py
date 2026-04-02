@@ -3,34 +3,43 @@ import pandas as pd
 import json
 import gspread
 import random
-import re
 from google.oauth2.service_account import Credentials
 
-# --- 1. CONFIGURAZIONE E GRAFICA ---
-st.set_page_config(page_title="WC 2026 Contest", layout="wide")
+# --- 1. CONFIGURAZIONE E STILE ---
+st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     .stApp { background-color: #f8fafc; color: #0f172a; font-family: 'Inter', sans-serif; }
     
+    /* Input Nickname Centrato e Stretto */
     .nick-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
+    
+    /* Tabulazioni */
     button[data-baseweb="tab"] p { font-size: 18px !important; font-weight: 700 !important; color: #64748b !important; }
     button[data-baseweb="tab"][aria-selected="true"] p { color: #0284c7 !important; }
 
+    /* Card Partite - Stile Pulito */
     .stElementContainer div[data-testid="stVerticalBlockBorderControl"] {
         background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; 
-        border-radius: 8px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        border-radius: 8px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        padding: 10px !important;
     }
     
+    /* Input Numerici Compatti */
     input[type="number"] {
         background-color: #f1f5f9 !important; color: #0f172a !important;
-        font-size: 22px !important; font-weight: 900 !important; border: 1px solid #94a3b8 !important;
-        border-radius: 6px !important; text-align: center !important; height: 45px !important;
+        font-size: 20px !important; font-weight: 900 !important; border: 1px solid #94a3b8 !important;
+        border-radius: 6px !important; text-align: center !important; height: 40px !important;
     }
     
-    .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 4px; }
-    .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 5px; }
+    /* Badge Punti e Bonus */
+    .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
+    .bonus-txt { color: #dc2626; font-size: 10px; font-weight: 800; display: block; text-align: center; margin-top: 5px; margin-bottom: 8px;}
+    
+    /* Bracket styling per compattezza */
+    div.stButton > button { padding: 2px 10px !important; min-height: 30px !important; font-size: 13px !important; font-weight: 700 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -41,8 +50,10 @@ if "initialized" not in st.session_state:
         st.session_state[f"a_{i}"] = 0
         st.session_state[f"adm_h_{i}"] = 0
         st.session_state[f"adm_a_{i}"] = 0
-    st.session_state["vincitore"] = "TBD"
-    st.session_state["adm_vincitore"] = "TBD"
+    # Inizializzo tutte le 31 partite del bracket (16+8+4+2+1)
+    for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
+        st.session_state[k] = "TBD"
+        st.session_state[f"adm_{k}"] = "TBD"
     st.session_state["initialized"] = True
 
 # --- 3. RANKING E DATI (ESATTI DA PDF) ---
@@ -71,39 +82,30 @@ for gid, teams in G_TEAMS.items():
         MATCHES.append({"gr": gid, "h": teams[h], "a": teams[a]})
 
 def get_flag(t):
-    if not t or t in ["???", "In attesa..."]: return "https://flagcdn.com/w160/un.png"
+    if not t or t in ["TBD", "In attesa..."]: return "https://flagcdn.com/w160/un.png"
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE GOOGLE SHEETS ---
-def get_service_email():
-    try:
-        conf = json.loads(st.secrets["service_account"])
-        return conf.get('client_email', 'Errore nei Secrets')
-    except: return "Errore nei Secrets"
-
+# --- 4. CONNESSIONE GOOGLE SHEETS (FIX DEFINITIVO) ---
 def invia_google_sheets(tab_name, nick, dati):
     try:
         conf = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         gc = gspread.authorize(creds)
         
-        # INSERISCI QUI IL TUO LINK GOOGLE SHEETS
-        URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0" 
+        # INSERISCI SOLO L'ID DEL FOGLIO (La sequenza alfanumerica lunga nel link)
+        # Esempio: se il link è https://docs.google.com/spreadsheets/d/1A2B3C4D5E/edit, l'ID è 1A2B3C4D5E
+        ID_DEL_FOGLIO = "1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8" 
         
-        sheet_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', URL_FOGLIO)
-        if sheet_id_match:
-            sh = gc.open_by_key(sheet_id_match.group(1))
-        else:
-            sh = gc.open_by_url(URL_FOGLIO)
-            
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
         ws = sh.worksheet(tab_name) if tab_name in [w.title for w in sh.worksheets()] else sh.get_worksheet(0)
         ws.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"❌ ERRORE 403: Google non ti fa accedere al file!")
-        st.markdown(f"Devi condividere il tuo Foglio Google (con permessi di EDITOR) con questa email:")
-        st.code(get_service_email(), language=None)
+        st.error(f"❌ ERRORE: Google non autorizza l'accesso.")
+        st.warning("1. Assicurati che l'email qui sotto sia 'Editor' nel file Excel.\n2. Assicurati di aver abilitato 'Google Sheets API' su Google Cloud Console.")
+        try: st.code(json.loads(st.secrets["service_account"]).get('client_email', ''), language=None)
+        except: pass
         return False
 
 # --- 5. CALCOLI CLASSIFICHE ---
@@ -127,11 +129,12 @@ def calcola_classifiche(prefisso=""):
         terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "Gruppo": g})
     
     migliori_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR"], ascending=False).head(8)
-    dict_terze = {row["Gruppo"]: row["Squadra"] for _, row in migliori_terze.iterrows()}
-    return rankings_finali, dict_terze, stats
+    # Lista ordinata delle 8 migliori terze
+    list_terze = migliori_terze["Squadra"].tolist()
+    return rankings_finali, list_terze, stats
 
 # --- 6. INTERFACCIA ---
-st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:20px;'>World Cup 2026 Contest</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:10px;'>🏆 World Cup 2026 Contest</h1>", unsafe_allow_html=True)
 
 with st.sidebar:
     st.write("### 🔒 Login Admin")
@@ -143,7 +146,7 @@ with c_nick:
     user = st.text_input("Inserisci Nickname Partecipante:", placeholder="Es. Marco_88")
 
 if user:
-    tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket", "🚀 Invia"]
+    tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket Completo", "🚀 Invia"]
     if is_admin: tab_list.append("👑 Pannello Admin")
     tabs = st.tabs(tab_list)
 
@@ -151,7 +154,7 @@ if user:
     with tabs[0]:
         c_btn1, c_btn2, c_btn3 = st.columns([1, 1.5, 1])
         with c_btn2:
-            if st.button("🪄 Autocompila Gironi (Mostra Numeri)", use_container_width=True):
+            if st.button("🪄 Autocompila Gironi", use_container_width=True):
                 for i in range(72):
                     st.session_state[f"h_{i}"] = random.randint(0, 4)
                     st.session_state[f"a_{i}"] = random.randint(0, 4)
@@ -165,28 +168,23 @@ if user:
                 idx = r * 4 + c
                 if idx < 72:
                     m = MATCHES[idx]
-                    
-                    # LOGICA PUNTI ESATTA
-                    p1 = RANKING[m['h']] # Segno 1 = Vittoria in casa = Punti Ranking Casa
-                    p2 = RANKING[m['a']] # Segno 2 = Vittoria fuori = Punti Ranking Ospite
-                    px = (p1 + p2) // 2  # Segno X = Pareggio = Somma diviso 2
-
+                    p1, p2 = RANKING[m['h']], RANKING[m['a']]
+                    px = (p1 + p2) // 2
                     with cols[c]:
                         with st.container(border=True):
-                            st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}</span><span class='pts-badge'>X: {px}</span><span class='pts-badge'>2: {p2}</span></div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}pt</span><span class='pts-badge'>X: {px}pt</span><span class='pts-badge'>2: {p2}pt</span></div>", unsafe_allow_html=True)
                             st.markdown("<span class='bonus-txt'>🎯 +50 pt Risultato Esatto</span>", unsafe_allow_html=True)
                             
                             c1, in1, vs, in2, c2 = st.columns([1, 1.2, 0.3, 1.2, 1])
-                            c1.image(get_flag(m['h']), width=35)
+                            c1.image(get_flag(m['h']), width=30)
                             in1.number_input("H", min_value=0, max_value=9, key=f"h_{idx}", label_visibility="collapsed")
-                            vs.markdown("<p style='text-align:center; padding-top:10px; font-weight:900;'>-</p>", unsafe_allow_html=True)
+                            vs.markdown("<p style='text-align:center; padding-top:6px; font-weight:900;'>-</p>", unsafe_allow_html=True)
                             in2.number_input("A", min_value=0, max_value=9, key=f"a_{idx}", label_visibility="collapsed")
-                            c2.image(get_flag(m['a']), width=35)
-                            st.markdown(f"<p style='text-align:center; font-size:13px; font-weight:700; margin-top:8px;'>{m['h']} vs {m['a']}</p>", unsafe_allow_html=True)
+                            c2.image(get_flag(m['a']), width=30)
+                            st.markdown(f"<p style='text-align:center; font-size:12px; font-weight:700; margin-top:5px;'>{m['h']} v {m['a']}</p>", unsafe_allow_html=True)
 
     # --- TAB CLASSIFICHE ---
     with tabs[1]:
-        st.write("### Classifiche Aggiornate")
         r_usr, t3_usr, stats_usr = calcola_classifiche(prefisso="")
         for i in range(0, 12, 3):
             cs = st.columns(3)
@@ -196,75 +194,103 @@ if user:
                 cs[k].write(f"**Gruppo {gid}**")
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET (WIMBLEDON STYLE) ---
+    # --- TAB BRACKET (TORNEO INTERO) ---
     def render_wimbledon(prefisso=""):
-        ranks, terze, _ = calcola_classifiche(prefisso)
+        ranks, terze_list, _ = calcola_classifiche(prefisso)
         
         def s_t(g, pos):
             try: return ranks[g][pos]
-            except: return "In attesa..."
+            except: return "TBD"
+            
+        def s_t3(index):
+            try: return terze_list[index]
+            except: return "TBD"
             
         def t_box(t1, t2, mid):
             with st.container(border=True):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.image(get_flag(t1), width=25)
-                    if st.button(f"{t1}", key=f"btn1_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state.get(prefisso+mid)==t1 else "secondary"):
-                        st.session_state[prefisso+mid]=t1; st.rerun()
-                with col2:
-                    st.image(get_flag(t2), width=25)
-                    if st.button(f"{t2}", key=f"btn2_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state.get(prefisso+mid)==t2 else "secondary"):
-                        st.session_state[prefisso+mid]=t2; st.rerun()
-            return st.session_state.get(prefisso+mid, "In attesa...")
+                st.markdown(f"<div style='font-size:10px; color:#94a3b8; font-weight:700;'>{mid}</div>", unsafe_allow_html=True)
+                # Tasti testuali compatti
+                if st.button(t1, key=f"btn1_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state[prefisso+mid]==t1 else "secondary"):
+                    st.session_state[prefisso+mid]=t1; st.rerun()
+                if st.button(t2, key=f"btn2_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state[prefisso+mid]==t2 else "secondary"):
+                    st.session_state[prefisso+mid]=t2; st.rerun()
+            return st.session_state[prefisso+mid]
 
-        c_sed, c_ott, c_qua, c_sem, c_fin = st.columns([1.2, 1.2, 1.2, 1.2, 1.4])
+        st.info("I nomi appaiono in base alle classifiche dei gironi. Clicca sui vincitori per farli avanzare nel tabellone.")
+        c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
         with c_sed:
-            st.write("📌 Sedicesimi")
-            s1 = t_box(s_t("A",1), s_t("C",1), "S1")
-            s2 = t_box(s_t("D",0), terze.get("A", "Miglior 3a"), "S2")
-            s3 = t_box(s_t("B",0), terze.get("B", "Miglior 3a"), "S3")
-            s4 = t_box(s_t("F",0), s_t("E",1), "S4")
+            st.markdown("<p style='font-weight:800; color:#475569;'>Sedicesimi (32)</p>", unsafe_allow_html=True)
+            # 16 PARTITE
+            s1 = t_box(s_t("A",0), s_t3(0), "S1")
+            s2 = t_box(s_t("B",1), s_t("C",1), "S2")
+            s3 = t_box(s_t("D",0), s_t3(1), "S3")
+            s4 = t_box(s_t("E",1), s_t("F",1), "S4")
+            s5 = t_box(s_t("G",0), s_t3(2), "S5")
+            s6 = t_box(s_t("H",1), s_t("I",1), "S6")
+            s7 = t_box(s_t("J",0), s_t3(3), "S7")
+            s8 = t_box(s_t("K",1), s_t("L",1), "S8")
+            s9 = t_box(s_t("B",0), s_t3(4), "S9")
+            s10= t_box(s_t("E",0), s_t("A",1), "S10")
+            s11= t_box(s_t("C",0), s_t3(5), "S11")
+            s12= t_box(s_t("F",0), s_t("D",1), "S12")
+            s13= t_box(s_t("H",0), s_t3(6), "S13")
+            s14= t_box(s_t("K",0), s_t("G",1), "S14")
+            s15= t_box(s_t("I",0), s_t3(7), "S15")
+            s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
-            st.write("🎯 Ottavi")
-            st.write("<br><br>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Ottavi (16)</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
             o1 = t_box(s1, s2, "O1")
-            st.write("<br><br><br>", unsafe_allow_html=True)
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
             o2 = t_box(s3, s4, "O2")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o3 = t_box(s5, s6, "O3")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o4 = t_box(s7, s8, "O4")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o5 = t_box(s9, s10, "O5")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o6 = t_box(s11, s12, "O6")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o7 = t_box(s13, s14, "O7")
+            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            o8 = t_box(s15, s16, "O8")
 
         with c_qua:
-            st.write("💎 Quarti")
-            st.write("<br><br><br><br><br><br>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Quarti (8)</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
             q1 = t_box(o1, o2, "Q1")
+            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            q2 = t_box(o3, o4, "Q2")
+            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            q3 = t_box(o5, o6, "Q3")
+            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
-            st.write("🔥 Semifinali")
-            st.write("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
-            sem1 = t_box(q1, "Altra Semi", "SEM1")
+            st.markdown("<p style='font-weight:800; color:#475569;'>Semi (4)</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:300px;'></div>", unsafe_allow_html=True)
+            sem1 = t_box(q1, q2, "SEM1")
+            st.markdown("<div style='height:580px;'></div>", unsafe_allow_html=True)
+            sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
-            st.write("🏆 FINALE")
-            st.write("<br><br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#1d4ed8;'>FINALE</p>", unsafe_allow_html=True)
+            st.markdown("<div style='height:600px;'></div>", unsafe_allow_html=True)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "vincitore"
-            win = t_box(sem1, "Finalista 2", "WINNER")
+            win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
-            if win not in ["In attesa...", "Altra Semi", "Finalista 2"] and prefisso=="": st.balloons()
+            if win not in ["TBD"] and prefisso=="": st.balloons()
 
     with tabs[2]:
-        if st.button("🪄 Autocompila Bracket (Test Grafico)"):
-            all_teams = list(RANKING.keys())
-            for k in ["S1","S2","O1","SEM1","WINNER"]: st.session_state[k] = random.choice(all_teams)
-            st.rerun()
         render_wimbledon(prefisso="")
 
     # --- ADMIN AREA ---
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            st.error("⚠️ IMPORTANTE: Se l'invio fallisce, copia questa email e aggiungila come Editor nel tuo file Google Sheets:")
-            st.code(get_service_email(), language=None)
-            
             adm_tabs = st.tabs(["1. Classifica Ranking", "2. Risultati Reali", "3. Bracket Reale"])
             
             with adm_tabs[0]:
@@ -285,7 +311,6 @@ if user:
                         ca2.number_input("A", 0, 9, key=f"adm_a_{i}")
                         
             with adm_tabs[2]:
-                st.write("### Bracket Ufficiale Torneo")
                 render_wimbledon(prefisso="adm_")
                 st.divider()
                 if st.button("💾 SALVA RISULTATI REALI IN GOOGLE SHEETS", type="primary"):
