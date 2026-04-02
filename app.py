@@ -8,21 +8,18 @@ from google.oauth2.service_account import Credentials
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
 
-# CSS: Look moderno, card pulite e input centrati
+# CSS: Look moderno e score orizzontali
 st.markdown("""
 <style>
     .stApp { background-color: #f4f7f9; }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: #ffffff; border-radius: 5px 5px 0 0; padding: 10px 20px; border: 1px solid #e0e0e0;
-    }
-    .match-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .match-card { background: white; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     .ranking-badge { 
         background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; 
-        border-radius: 6px; font-size: 11px; font-weight: 800; padding: 4px; text-align: center; margin-bottom: 10px;
+        border-radius: 6px; font-size: 11px; font-weight: 800; padding: 4px; text-align: center; margin-bottom: 8px;
     }
-    input[type="number"] { font-size: 22px !important; font-weight: 900 !important; text-align: center !important; }
-    .team-name { font-size: 13px; font-weight: 700; color: #1e293b; text-align: center; line-height: 1.2; }
+    input[type="number"] { font-size: 20px !important; font-weight: 900 !important; text-align: center !important; }
+    .team-name { font-size: 12px; font-weight: 700; color: #1e293b; text-align: center; margin-top: 5px; }
+    .vs-divider { font-size: 20px; font-weight: 900; color: #cbd5e1; text-align: center; padding-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -84,7 +81,7 @@ def get_flag(t):
     }
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 3. LOGICA CALCOLO ---
+# --- 3. LOGICA CALCOLO E CONNESSIONE ---
 def calcola_classifiche():
     res = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
@@ -103,7 +100,6 @@ def calcola_classifiche():
         df = pd.DataFrame(teams_stat).T.sort_values(["Pt", "DR", "GF"], ascending=False)
         final_ranks[gid] = df.index.tolist()
         thirds.append({"team": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"], "gr": gid})
-    
     best_thirds = pd.DataFrame(thirds).sort_values(["Pt", "DR", "GF"], ascending=False).head(8)
     return final_ranks, best_thirds, res
 
@@ -119,26 +115,22 @@ def salva_su_google(nick, dati):
         js = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(js, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
-        
         # --- INCOLLA QUI IL TUO LINK ---
         URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0" 
-        
         sheet = client.open_by_url(URL_FOGLIO).sheet1
         sheet.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"Errore tecnico: {e}")
+        st.error(f"Errore Google Sheets: {e}")
         return False
 
 # --- 4. INTERFACCIA ---
-st.title("🏆 FIFA World Cup 2026 Prediction Contest")
 user_nick = st.text_input("👤 Inserisci il tuo Nickname:", placeholder="Es. Luca_King")
 
 if user_nick:
     tab1, tab2, tab3, tab4 = st.tabs(["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"])
 
     with tab1:
-        st.write("### 🏟️ Fase a Gironi")
         if st.button("🪄 Compilazione Rapida (Random)"):
             for i in range(72):
                 st.session_state[f"h_{i}"] = random.randint(0, 4)
@@ -156,20 +148,23 @@ if user_nick:
                     with cols[c]:
                         with st.container(border=True):
                             st.markdown(f"<div class='ranking-badge'>1: {p1} | X: {px} | 2: {p2}</div>", unsafe_allow_html=True)
-                            c1, c_vs, c2 = st.columns([2, 1, 2])
-                            c1.image(get_flag(m['h']), width=40)
-                            c2.image(get_flag(m['a']), width=40)
-                            c1.markdown(f"<div class='team-name'>{m['h']}</div>", unsafe_allow_html=True)
-                            c2.markdown(f"<div class='team-name'>{m['a']}</div>", unsafe_allow_html=True)
+                            f1, f2 = st.columns(2)
+                            f1.image(get_flag(m['h']), width=35)
+                            f2.image(get_flag(m['a']), width=35)
+                            f1.markdown(f"<div class='team-name'>{m['h']}</div>", unsafe_allow_html=True)
+                            f2.markdown(f"<div class='team-name'>{m['a']}</div>", unsafe_allow_html=True)
                             
-                            i1, i2 = st.columns(2)
-                            # FISSIAMO LE CHIAVI PER LA COMPILAZIONE AUTOMATICA
-                            st.number_input("H", 0, 9, key=f"h_{idx}", label_visibility="collapsed")
-                            st.number_input("A", 0, 9, key=f"a_{idx}", label_visibility="collapsed")
+                            # --- SCORE ORIZZONTALE ---
+                            s1, svs, s2 = st.columns([2, 1, 2])
+                            with s1:
+                                st.number_input("H", 0, 9, key=f"h_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
+                            with svs:
+                                st.markdown("<div class='vs-divider'>–</div>", unsafe_allow_html=True)
+                            with s2:
+                                st.number_input("A", 0, 9, key=f"a_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
 
     with tab2:
         ranks, b_thirds, stats = calcola_classifiche()
-        st.header("Classifiche")
         for i in range(0, 12, 3):
             cs = st.columns(3)
             for k in range(3):
@@ -177,9 +172,6 @@ if user_nick:
                 df = pd.DataFrame(stats[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
                 cs[k].write(f"**Gruppo {gid}**")
                 cs[k].dataframe(df, use_container_width=True)
-        st.divider()
-        st.subheader("Migliori Terze")
-        st.table(b_thirds)
 
     with tab3:
         ranks, b_thirds_df, _ = calcola_classifiche()
@@ -197,7 +189,6 @@ if user_nick:
             ("S13", ranks["K"][0], get_3rd_team("1K", th_dict)), ("S14", ranks["L"][0], ranks["G"][1]),
             ("S15", ranks["G"][1], ranks["H"][1]), ("S16", ranks["K"][1], get_3rd_team("1L", th_dict))
         ]
-        
         v_s = {}
         c_s = st.columns(4)
         for i, (m_id, t1, t2) in enumerate(s_matches):
@@ -217,7 +208,7 @@ if user_nick:
                 with st.container(border=True):
                     t1, t2 = v_s[m1], v_s[m2]
                     st.image([get_flag(t1), get_flag(t2)], width=35)
-                    v_o[f"O{i}"] = st.radio(f"Ottavo {i+1}", [t1, t2], key=f"vo_{i}")
+                    v_o[f"O{i}"] = st.radio(f"Vince:", [t1, t2], key=f"vo_{i}", horizontal=True)
 
         # --- QUARTI ---
         st.subheader("💎 Quarti di Finale")
@@ -229,27 +220,39 @@ if user_nick:
                 with st.container(border=True):
                     t1, t2 = v_o[m1], v_o[m2]
                     st.image([get_flag(t1), get_flag(t2)], width=35)
-                    v_q[f"Q{i}"] = st.radio(f"Quarto {i+1}", [t1, t2], key=f"vq_{i}")
+                    v_q[f"Q{i}"] = st.radio(f"Vince:", [t1, t2], key=f"vq_{i}", horizontal=True)
 
-        # --- SEMI & FINALE ---
-        st.subheader("🔥 Fasi Finali")
+        # --- SEMIFINALI ---
+        st.subheader("🔥 Semifinali")
         c_semi = st.columns(2)
-        v_semi1 = c_semi[0].radio("Semi 1", [v_q["Q0"], v_q["Q1"]], key="semi1")
-        v_semi2 = c_semi[1].radio("Semi 2", [v_q["Q2"], v_q["Q3"]], key="semi2")
+        v_semi = {}
+        s_pairs = [("Q0","Q1"), ("Q2","Q3")]
+        for i, (m1, m2) in enumerate(s_pairs):
+            with c_semi[i]:
+                with st.container(border=True):
+                    t1, t2 = v_q[m1], v_q[m2]
+                    st.image([get_flag(t1), get_flag(t2)], width=45)
+                    v_semi[f"F{i}"] = st.radio(f"Semi {i+1}", [t1, t2], key=f"vsemi_{i}", horizontal=True)
         
+        # --- FINALE ---
         st.divider()
-        v_finale = st.selectbox("🏆 CAMPIONE DEL MONDO 2026", [v_semi1, v_semi2])
-        st.image(get_flag(v_finale), width=100)
-        st.session_state["campione"] = v_finale
+        st.subheader("🥇 FINALE")
+        f_center = st.columns([1, 2, 1])
+        with f_center[1]:
+            with st.container(border=True):
+                t1, t2 = v_semi["F0"], v_semi["F1"]
+                st.image([get_flag(t1), get_flag(t2)], width=60)
+                v_finale = st.selectbox("🏆 Seleziona il Campione:", [t1, t2], key="campione_sel")
+                st.session_state["campione"] = v_finale
+                if v_finale: st.image(get_flag(v_finale), width=80)
 
     with tab4:
         st.header("Invia i Pronostici")
-        if st.button("SALVA DEFINITIVAMENTE", type="primary"):
-            # RACCOLTA DATI CORRETTA DALLE CHIAVI WIDGET
+        if st.button("🚀 SALVA DEFINITIVAMENTE", type="primary"):
             dati = {
                 "Gironi": {f"M_{i}": [st.session_state.get(f"h_{i}", 0), st.session_state.get(f"a_{i}", 0)] for i in range(72)},
-                "Campione": st.session_state.get("campione", "Non assegnato")
+                "Campione": st.session_state.get("campione")
             }
             if salva_su_google(user_nick, dati):
                 st.balloons()
-                st.success("Pronostici salvati su Google Sheets! Buona fortuna!")
+                st.success("Pronostici salvati! Buona fortuna!")
