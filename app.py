@@ -421,14 +421,14 @@ if user:
             st.header("👑 Pannello Admin")
             
             if st.session_state.get("admin_saved_success"):
-                st.success("✅ Risultati Reali salvati nel database! La classifica ufficiale è stata aggiornata.")
+                st.success("✅ Risultati Reali e Tabellone salvati con successo! La classifica ufficiale è aggiornata.")
                 st.session_state["admin_saved_success"] = False
 
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
-                st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato 'Salva' nell'apposita tab.")
+                st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato il bottone 'Salva' blu in basso.")
                 
                 df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
                 
@@ -478,7 +478,6 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # I campi Admin non avranno alcun pre-caricamento "0"
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -494,16 +493,18 @@ if user:
                         
             with adm_tabs[2]:
                 render_wimbledon(prefisso="adm_")
-                st.divider()
-                if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary", use_container_width=True):
-                    payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
-                    chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
-                    payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
-                    
-                    if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
-                        st.session_state["admin_saved_success"] = True
-                        time.sleep(1) # Attende che Google Sheets indicizzi i dati
-                        st.rerun()
+                
+            # --- IL TASTO ORA E' FUORI DALLE SOTTO-SCHEDE ---
+            st.divider()
+            if st.button("💾 SALVA TUTTO (RISULTATI E TABELLONE) IN GOOGLE SHEETS", type="primary", use_container_width=True):
+                payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
+                chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
+                payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
+                
+                if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
+                    st.session_state["admin_saved_success"] = True
+                    time.sleep(1) 
+                    st.rerun()
 
     # --- INVIO ---
     with tabs[3]:
@@ -520,5 +521,5 @@ if user:
             
             if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
                 st.session_state["user_saved_success"] = True
-                time.sleep(1) # Rende l'esperienza utente più solida
+                time.sleep(1) 
                 st.rerun()
