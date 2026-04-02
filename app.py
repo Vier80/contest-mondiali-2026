@@ -6,35 +6,35 @@ import random
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
+st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS: Stilizzazione Card e Layout
+# CSS Migliorato: Caratteri, Colori e Input Centrati
 st.markdown("""
 <style>
-.stApp { background-color: #f5f5f5; color: #111; }
-[data-testid="column"] { padding: 0 5px !important; }
-[data-testid="column"] > div {
-    background: #ffffff;
-    border: 2px solid #e1e4e8;
-    border-radius: 12px;
-    padding: 10px 8px 12px 8px !important;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.06);
-    margin-bottom: 14px;
-}
-input[type="number"] {
-    font-size: 22px !important;
-    font-weight: 900 !important;
-    text-align: center !important;
-    height: 46px !important;
-    border-radius: 8px !important;
-    border: 2px solid #e1e4e8 !important;
-    background: #f8f9fa !important;
-    color: #111 !important;
-}
-.stNumberInput label { display: none !important; }
-[data-testid="stImage"] { display: flex !important; justify-content: center !important; margin: 0 auto !important; }
-[data-testid="stImage"] img { border-radius: 3px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.18) !important; }
-[data-testid="column"] p { text-align: center !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+    html, body, [class*="st-"] { font-family: 'Inter', sans-serif; }
+    
+    .stApp { background-color: #f0f2f5; }
+    
+    /* Titoli e Testi */
+    h1, h2, h3 { color: #1e293b; font-weight: 900 !important; }
+    
+    /* Styling degli Input Numerici (Grandi e Centrati) */
+    div[data-baseweb="input"] {
+        border-radius: 8px !important;
+        background-color: #ffffff !important;
+    }
+    input[type="number"] {
+        font-size: 24px !important;
+        font-weight: 900 !important;
+        text-align: center !important;
+        color: #1e293b !important;
+        padding: 10px 0 !important;
+    }
+
+    /* Bandiere e Nomi */
+    .team-name { font-size: 13px; font-weight: 700; color: #334155; margin-top: 5px; text-align: center; }
+    .vs-text { font-size: 16px; font-weight: 900; color: #94a3b8; padding-top: 35px; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -99,12 +99,9 @@ def get_flag(t):
 # --- 3. CONNESSIONE GOOGLE SHEETS ---
 def salva_pronostici(nick, dati_completi):
     try:
-        # Recupera le credenziali dai secrets di Streamlit
         js = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(
-            js,
-            scopes=["https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"]
+            js, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
         client = gspread.authorize(creds)
         
@@ -115,15 +112,12 @@ def salva_pronostici(nick, dati_completi):
         sheet.append_row([nick, json.dumps(dati_completi)])
         return True
     except Exception as e:
-        st.error(f"Errore durante il salvataggio: {e}")
+        st.error(f"Errore tecnico Database: {e}")
         return False
 
-# --- 4. LOGICA CALCOLO CLASSIFICHE ---
+# --- 4. LOGICA CLASSIFICHE ---
 def calcola_classifiche():
-    # Inizializza statistiche
     stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
-    
-    # Elabora risultati gironi
     for i, m in enumerate(MATCHES):
         h_g = st.session_state.get(f"h_{i}", 0)
         a_g = st.session_state.get(f"a_{i}", 0)
@@ -137,21 +131,14 @@ def calcola_classifiche():
     final_ranks = {}
     thirds = []
     for gid, teams_stat in stats.items():
-        # Ordinamento: Punti > DR > GF
         df_g = pd.DataFrame(teams_stat).T.sort_values(["Pt", "DR", "GF"], ascending=False)
         final_ranks[gid] = df_g.index.tolist()
-        # Prendi la terza classificata di ogni girone
-        thirds.append({
-            "team": df_g.index[2], "Pt": df_g.iloc[2]["Pt"], 
-            "DR": df_g.iloc[2]["DR"], "GF": df_g.iloc[2]["GF"], "gr": gid
-        })
+        thirds.append({"team": df_g.index[2], "Pt": df_g.iloc[2]["Pt"], "DR": df_g.iloc[2]["DR"], "GF": df_g.iloc[2]["GF"], "gr": gid})
     
-    # Seleziona le migliori 8 terze
     best_thirds = pd.DataFrame(thirds).sort_values(["Pt", "DR", "GF"], ascending=False).head(8)
     return final_ranks, best_thirds, stats
 
 def get_third_opponent(slot, best_thirds_dict):
-    """Assegna le terze ai vincitori dei gironi (Basato su RTF)"""
     disponibili = sorted(best_thirds_dict.keys())
     mapping = {
         "1D": disponibili[0] if len(disponibili) > 0 else "3D",
@@ -163,51 +150,66 @@ def get_third_opponent(slot, best_thirds_dict):
         "1K": disponibili[6] if len(disponibili) > 6 else "3K",
         "1L": disponibili[7] if len(disponibili) > 7 else "3L",
     }
-    gr_trovato = mapping.get(slot)
-    return best_thirds_dict.get(gr_trovato, f"3rd {slot[-1]}")
+    return best_thirds_dict.get(mapping.get(slot), f"3rd {slot[-1]}")
 
-# --- 5. INTERFACCIA PRINCIPALE ---
-nick = st.text_input("👤 Inserisci il tuo Nickname:", placeholder="Esempio: Bomber99")
+# --- 5. UI PRINCIPALE ---
+st.title("🏆 World Cup 2026 Contest")
+nick = st.text_input("👤 Inserisci il tuo Nickname per iniziare:", placeholder="Esempio: Marco_88")
 
 if nick:
-    tab1, tab2, tab3, tab4 = st.tabs(["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🌍 GIRONI", "📊 CLASSIFICHE", "⚔️ BRACKET", "🚀 INVIA"])
 
-    # --- TAB 1: GIRONI ---
+    # --- TAB 1: GIRONI (Impaginazione Card) ---
     with tab1:
-        if st.button("Compila Random (Test)"):
+        st.info("Inserisci i risultati delle 72 partite dei gironi.")
+        if st.button("🪄 Compila Automaticamente (Casuale)", type="secondary"):
             for i in range(72):
-                st.session_state[f"h_{i}"] = random.randint(0, 4)
-                st.session_state[f"a_{i}"] = random.randint(0, 4)
+                st.session_state[f"h_{i}"] = random.randint(0, 3)
+                st.session_state[f"a_{i}"] = random.randint(0, 3)
             st.rerun()
 
-        for row in range(18):
+        for row in range(18): # 18 righe x 4 colonne = 72 match
             cols = st.columns(4)
             for c_idx in range(4):
                 idx = row * 4 + c_idx
                 if idx < 72:
                     m = MATCHES[idx]
                     with cols[c_idx]:
-                        st.markdown(f"<p style='color:#d32f2f; font-size:10px; font-weight:800; margin-bottom:2px;'>⚽ GRP {m['gr']}</p>", unsafe_allow_html=True)
-                        # Box Input
-                        ci1, ci2 = st.columns(2)
-                        st.session_state[f"h_{idx}"] = ci1.number_input(f"{m['h']}", 0, 9, key=f"in_h_{idx}", value=st.session_state.get(f"h_{idx}", 0))
-                        st.session_state[f"a_{idx}"] = ci2.number_input(f"{m['a']}", 0, 9, key=f"in_a_{idx}", value=st.session_state.get(f"a_{idx}", 0))
-                        st.markdown(f"<p style='font-size:11px; font-weight:600;'>{m['h']} - {m['a']}</p>", unsafe_allow_html=True)
+                        with st.container(border=True):
+                            st.markdown(f"<div style='text-align:center; font-weight:900; color:#ef4444; font-size:11px;'>GRUPPO {m['gr']}</div>", unsafe_allow_html=True)
+                            
+                            c_flag1, c_vs, c_flag2 = st.columns([2, 1, 2])
+                            with c_flag1:
+                                st.image(get_flag(m['h']), width=45)
+                                st.markdown(f"<div class='team-name'>{m['h']}</div>", unsafe_allow_html=True)
+                            with c_vs:
+                                st.markdown("<div class='vs-text'>VS</div>", unsafe_allow_html=True)
+                            with c_flag2:
+                                st.image(get_flag(m['a']), width=45)
+                                st.markdown(f"<div class='team-name'>{m['a']}</div>", unsafe_allow_html=True)
+                            
+                            st.write("") # Spazio
+                            i_h, i_a = st.columns(2)
+                            val_h = st.session_state.get(f"h_{idx}", 0)
+                            val_a = st.session_state.get(f"a_{idx}", 0)
+                            st.session_state[f"h_{idx}"] = i_h.number_input("H", 0, 9, val_h, key=f"nh_{idx}", label_visibility="collapsed")
+                            st.session_state[f"a_{idx}"] = i_a.number_input("A", 0, 9, val_a, key=f"na_{idx}", label_visibility="collapsed")
 
     # --- TAB 2: CLASSIFICHE ---
     with tab2:
         final_ranks, best_thirds_df, stats = calcola_classifiche()
-        st.header("Situazione Gironi")
+        st.header("Classifiche Real-Time")
         for i in range(0, 12, 3):
             cols = st.columns(3)
             for k in range(3):
                 gid = list(G_TEAMS.keys())[i+k]
                 df = pd.DataFrame(stats[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-                cols[k].subheader(f"Gruppo {gid}")
-                cols[k].table(df)
+                with cols[k]:
+                    st.subheader(f"Girone {gid}")
+                    st.dataframe(df, use_container_width=True)
         
         st.divider()
-        st.subheader("Classifica Migliori Terze (Passano le prime 8)")
+        st.subheader("🏁 Classifica Migliori Terze")
         st.table(best_thirds_df)
 
     # --- TAB 3: BRACKET ---
@@ -215,10 +217,8 @@ if nick:
         final_ranks, best_thirds_df, _ = calcola_classifiche()
         b_thirds = {row['gr']: row['team'] for _, row in best_thirds_df.iterrows()}
         
-        st.header("⚔️ Sedicesimi di Finale (Round of 32)")
-        st.write("Scegli chi passa il turno selezionando la squadra vincente.")
-
-        # Definizione accoppiamenti (Basata su RTF e struttura 48 squadre)
+        st.header("⚔️ Sedicesimi di Finale")
+        
         accoppiamenti = [
             ("M1", final_ranks["A"][1], final_ranks["C"][1]),
             ("M2", final_ranks["D"][0], get_third_opponent("1D", b_thirds)),
@@ -242,32 +242,28 @@ if nick:
         cols_b = st.columns(4)
         for i, (m_id, t1, t2) in enumerate(accoppiamenti):
             with cols_b[i // 4]:
-                st.markdown(f"**Match {i+1}**")
-                choice = st.radio(f"Vince:", [t1, t2], key=f"br_{m_id}")
-                vincitori_s[m_id] = choice
-                st.divider()
+                with st.container(border=True):
+                    st.markdown(f"**MATCH {i+1}**")
+                    choice = st.radio(f"{t1} vs {t2}", [t1, t2], key=f"br_{m_id}")
+                    vincitori_s[m_id] = choice
 
-        # Vincitore Finale (Semplificato per brevità)
-        st.subheader("🏆 Vincitore Mondiale Pronosticato")
-        campione = st.selectbox("Chi alzerà la coppa?", sorted(list(vincitori_s.values())))
-        st.session_state["campione_finale"] = campione
+        st.divider()
+        st.subheader("🏆 Vincitore Finale")
+        campione = st.selectbox("Chi vincerà il Mondiale?", sorted(list(set(vincitori_s.values()))))
+        st.session_state["vincitore_finale"] = campione
         if campione:
-            st.balloons()
+            st.success(f"Il tuo campione è: **{campione}**")
 
     # --- TAB 4: INVIO ---
     with tab4:
-        st.header("Salva i tuoi Pronostici")
-        st.write("Controlla bene i tuoi dati prima di inviare. Una volta salvati non potrai più modificarli.")
-        
-        if st.button("🚀 INVIA PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            # Prepara il pacchetto dati
-            dati_da_salvare = {
-                "Gironi": {f"Match_{i}": [st.session_state.get(f"h_{i}"), st.session_state.get(f"a_{i}")] for i in range(72)},
-                "Campione": st.session_state.get("campione_finale", "Non selezionato")
+        st.header("🚀 Invia i tuoi Dati")
+        if st.button("SALVA PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+            dati = {
+                "gironi": {f"M_{i}": [st.session_state.get(f"h_{i}"), st.session_state.get(f"a_{i}")] for i in range(72)},
+                "vincitore": st.session_state.get("vincitore_finale")
             }
-            
-            if salva_pronostici(nick, dati_da_salvare):
-                st.success(f"Grazie {nick}! I tuoi pronostici sono stati salvati correttamente.")
-                st.confetti()
+            if salva_pronostici(nick, dati):
+                st.balloons()
+                st.success("Dati inviati con successo! In bocca al lupo!")
             else:
-                st.error("C'è stato un problema col database. Controlla la configurazione dei Secrets o il link del foglio.")
+                st.error("Errore nell'invio. Controlla il link Google Sheets o i Secrets.")
