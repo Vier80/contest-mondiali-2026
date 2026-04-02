@@ -47,8 +47,8 @@ if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
         st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = None  # Ora i risultati Admin partono vuoti (None)
-        st.session_state[f"adm_a_{i}"] = None  # Ora i risultati Admin partono vuoti (None)
+        st.session_state[f"adm_h_{i}"] = None  # Parte rigorosamente in bianco
+        st.session_state[f"adm_a_{i}"] = None  # Parte rigorosamente in bianco
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
@@ -146,20 +146,31 @@ def get_admin_dashboard_data():
             punti_tot = 0
             punti_bonus = 0
             
+            # --- MOTORE DI LETTURA BLINDATO UNIVERSALE ---
             for i, m in enumerate(MATCHES):
-                match_key = f"G_{m['gr']} {m['h']}-{m['a']}"
-                if match_key in user_gironi and match_key in reali_dict:
+                match_key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+                match_key_num = str(i)
+                
+                # Cerca i dati del partecipante (sia formato vecchio che nuovo)
+                u_vals = None
+                if match_key_str in user_gironi: u_vals = user_gironi[match_key_str]
+                elif match_key_num in user_gironi: u_vals = user_gironi[match_key_num]
+                
+                # Cerca i dati reali salvati dall'admin (sia formato vecchio che nuovo)
+                r_vals = None
+                if match_key_str in reali_dict: r_vals = reali_dict[match_key_str]
+                elif match_key_num in reali_dict: r_vals = reali_dict[match_key_num]
+                
+                if u_vals and r_vals:
                     try:
-                        u_h_val = user_gironi[match_key][0]
-                        u_a_val = user_gironi[match_key][1]
-                        r_h_val = reali_dict[match_key][0]
-                        r_a_val = reali_dict[match_key][1]
+                        u_h_val, u_a_val = u_vals[0], u_vals[1]
+                        r_h_val, r_a_val = r_vals[0], r_vals[1]
                         
-                        # IGNORA COMPLETAMENTE SE L'ADMIN NON HA INSERITO IL RISULTATO
+                        # SALTA in tronco se l'Admin ha lasciato in bianco
                         if r_h_val is None or r_a_val is None or r_h_val == "" or r_a_val == "":
                             continue
                             
-                        # Considera 0 se l'utente non ha inserito nulla
+                        # Considera 0 se eccezionalmente un utente ha i campi vuoti
                         u_h = int(u_h_val) if u_h_val not in [None, ""] else 0
                         u_a = int(u_a_val) if u_a_val not in [None, ""] else 0
                         
@@ -172,11 +183,13 @@ def get_admin_dashboard_data():
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
                         
+                        # ASSEGNAZIONE PUNTI RANKING
                         if u_esito == r_esito:
                             if r_esito == 1: punti_tot += p1
                             elif r_esito == 2: punti_tot += p2
                             else: punti_tot += px
                         
+                        # ASSEGNAZIONE BONUS RISULTATO ESATTO
                         if u_h == r_h and u_a == r_a:
                             punti_tot += 50
                             punti_bonus += 50
@@ -187,6 +200,7 @@ def get_admin_dashboard_data():
             
         df = pd.DataFrame(classifica)
         if not df.empty:
+            # Elimina doppioni, tenendo valida l'ultima riga inviata
             df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
             df.index += 1
@@ -195,15 +209,16 @@ def get_admin_dashboard_data():
         return pd.DataFrame(), [], None
 
 def elimina_utente(ws, row_index):
+    # Doppio comando blindato per sopperire agli aggiornamenti di gspread
     try:
-        ws.delete_rows(row_index)
+        ws.delete_row(int(row_index))
         return True
-    except AttributeError:
+    except:
         try:
-            ws.delete_row(row_index)
+            ws.delete_rows(int(row_index))
             return True
-        except: return False
-    except: return False
+        except:
+            return False
 
 # --- 5. CALCOLI CLASSIFICHE GIRONI (UI) ---
 def calcola_classifiche(prefisso=""):
@@ -212,7 +227,7 @@ def calcola_classifiche(prefisso=""):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
         
-        # Protezione vitale per Admin: Salta le partite vuote (None) per non fare crashare i calcoli
+        # Protezione: salta i vuoti dell'Admin per evitare crash
         if h is None or a is None or h == "" or a == "":
             continue
             
@@ -393,7 +408,6 @@ if user:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
             
-            # Messaggio di conferma post-salvataggio Admin
             if st.session_state.get("admin_saved_success"):
                 st.success("✅ Risultati Reali salvati nel database! La classifica è aggiornata.")
                 st.session_state["admin_saved_success"] = False
@@ -404,6 +418,7 @@ if user:
                 st.write("### Classifica Ufficiale")
                 df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
                 
+                # Se la classifica NON è vuota, la mostra e mostra il tasto Whatsapp
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
                     
@@ -430,17 +445,17 @@ if user:
                     if nomi_utenti:
                         col_del1, col_del2 = st.columns([2, 1])
                         with col_del1:
-                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga {x[1]})")
+                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga Foglio: {x[1]})")
                         with col_del2:
                             st.write("<br>", unsafe_allow_html=True)
                             if st.button("🗑️ Elimina", type="primary"):
-                                if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
-                                    st.success(f"{utente_da_eliminare[0]} eliminato! La pagina si sta ricaricando...")
-                                    st.rerun() # Refresh automatico all'eliminazione
+                                if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
+                                    st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
+                                    st.rerun() # Forza il refresh subito dopo la cancellazione
                                 else:
                                     st.error("Errore di comunicazione con Google Sheets durante l'eliminazione.")
                 else:
-                    st.info("Nessun dato o classifica ancora disponibile. Attendi che i partecipanti salvino i pronostici.")
+                    st.info("Nessun partecipante ha ancora giocato oppure nessun punteggio valido calcolato.")
 
             with adm_tabs[1]:
                 col_btn_test, _ = st.columns([1, 2])
@@ -451,7 +466,7 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # Input in bianco di default con value=None
+                # I campi admin partono senza default (value=None)
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -475,7 +490,7 @@ if user:
                     
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                         st.session_state["admin_saved_success"] = True
-                        st.rerun() # Refresh automatico per aggiornare la classifica in tempo reale
+                        st.rerun() # Refresh automatico per mostrare la classifica aggiornata
 
     # --- INVIO ---
     with tabs[3]:
