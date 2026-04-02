@@ -30,6 +30,10 @@ st.markdown("""
         border-radius: 6px !important; text-align: center !important; height: 45px !important;
     }
     
+    /* Login Admin Discreto */
+    .admin-login-box input { height: 35px !important; font-size: 14px !important; border: 1px solid #e2e8f0 !important; background-color: transparent !important; color: #cbd5e1 !important;}
+    .admin-login-box input:focus { border: 1px solid #94a3b8 !important; color: #0f172a !important;}
+    
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 4px; }
     .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 5px; }
     
@@ -134,19 +138,16 @@ def get_admin_dashboard_data():
             punti_tot = 0
             punti_bonus = 0
             
-            for match_key, scores in user_gironi.items():
-                if match_key in reali_dict:
+            # NUOVO MOTORE DI LETTURA PUNTI (A prova di nomi con spazi)
+            for i, m in enumerate(MATCHES):
+                match_key = f"G_{m['gr']} {m['h']}-{m['a']}"
+                if match_key in user_gironi and match_key in reali_dict:
                     try:
-                        u_h, u_a = scores[0], scores[1]
-                        r_h, r_a = reali_dict[match_key][0], reali_dict[match_key][1]
+                        u_h, u_a = int(user_gironi[match_key][0]), int(user_gironi[match_key][1])
+                        r_h, r_a = int(reali_dict[match_key][0]), int(reali_dict[match_key][1])
                         
-                        # CORREZIONE BUG NOMI SQUADRE CON SPAZI:
-                        # Estrae in modo sicuro saltando i primi 4 caratteri (Es: "G_A ")
-                        team_str = match_key[4:] 
-                        h_team, a_team = team_str.split("-")[0], team_str.split("-")[1]
-                        
-                        p1 = RANKING.get(h_team, 0)
-                        p2 = RANKING.get(a_team, 0)
+                        p1 = RANKING.get(m['h'], 0)
+                        p2 = RANKING.get(m['a'], 0)
                         px = (p1 + p2) // 2
                         
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
@@ -167,7 +168,6 @@ def get_admin_dashboard_data():
             
         df = pd.DataFrame(classifica)
         if not df.empty:
-            # Mostra solo l'ultimo invio per ogni utente
             df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
             df.index += 1
@@ -177,7 +177,7 @@ def get_admin_dashboard_data():
 
 def elimina_utente(ws, row_index):
     try:
-        ws.delete_row(row_index) # Funzione stabile per Gspread
+        ws.delete_row(row_index)
         return True
     except: return False
 
@@ -206,12 +206,15 @@ def calcola_classifiche(prefisso=""):
     return rankings_finali, list_terze, stats
 
 # --- 6. INTERFACCIA ---
-st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:10px;'>🏆 World Cup 2026 Contest</h1>", unsafe_allow_html=True)
-
-with st.sidebar:
-    st.write("### 🔒 Login Admin")
-    admin_pw = st.text_input("Password", type="password")
+# Title and Discreet Admin Login
+c_title, c_login = st.columns([9, 1])
+with c_title:
+    st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:10px; padding-left:10%;'>🏆 World Cup 2026 Contest</h1>", unsafe_allow_html=True)
+with c_login:
+    st.markdown("<div class='admin-login-box' style='margin-top:20px;'>", unsafe_allow_html=True)
+    admin_pw = st.text_input(" ", type="password", key="admin_auth", placeholder="🔒", label_visibility="collapsed")
     is_admin = (admin_pw == "mondiali2026")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
 with c_nick:
@@ -360,7 +363,7 @@ if user:
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            adm_tabs = st.tabs(["📊 Ranking Partecipanti & Gestione", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
@@ -377,13 +380,15 @@ if user:
                     wa_text += "\n⚽ Generato dalla Master App!"
                     wa_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(wa_text)}"
                     
-                    st.markdown(f"""
-                    <a href="{wa_url}" target="_blank" style="text-decoration:none;">
-                        <div style="background-color:#25D366; color:white; padding:10px 20px; border-radius:8px; text-align:center; font-weight:bold; width:250px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                            💬 Condividi su WhatsApp
-                        </div>
-                    </a>
-                    """, unsafe_allow_html=True)
+                    c_wa1, c_wa2, c_wa3 = st.columns([1, 2, 1])
+                    with c_wa2:
+                        st.markdown(f"""
+                        <a href="{wa_url}" target="_blank" style="text-decoration:none; display:flex; justify-content:center;">
+                            <div style="background-color:#25D366; color:white; padding:12px 24px; border-radius:8px; text-align:center; font-weight:800; width:100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                                💬 Condividi Classifica su WhatsApp
+                            </div>
+                        </a>
+                        """, unsafe_allow_html=True)
                     
                     st.divider()
                     st.write("#### Gestione Utenti")
@@ -407,7 +412,6 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # Layout Compatto Risultati Reali
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -425,9 +429,7 @@ if user:
                 render_wimbledon(prefisso="adm_")
                 st.divider()
                 if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary", use_container_width=True):
-                    # Salva nome partita nel payload per maggiore chiarezza su Google Sheets
                     payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"adm_h_{i}"], st.session_state[f"adm_a_{i}"]] for i in range(72)}
-                    
                     chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
                     payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
                     
@@ -439,7 +441,6 @@ if user:
         st.write("### 🚀 Fase Finale")
         if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
             payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
-            
             chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
             payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
             
