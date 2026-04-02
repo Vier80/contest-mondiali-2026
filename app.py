@@ -8,18 +8,14 @@ from google.oauth2.service_account import Credentials
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
 
-# CSS: Score orizzontale e stile Bracket
+# CSS: Score orizzontale, pulsanti bracket e stile pulito
 st.markdown("""
 <style>
     .stApp { background-color: #f4f7f9; }
-    .match-card { background: white; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0; margin-bottom: 10px; }
-    .ranking-badge { 
-        background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; 
-        border-radius: 6px; font-size: 10px; font-weight: 800; padding: 2px; text-align: center; margin-bottom: 5px;
-    }
-    input[type="number"] { font-size: 20px !important; font-weight: 900 !important; text-align: center !important; height: 40px !important; }
-    .team-name { font-size: 11px; font-weight: 700; color: #1e293b; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .vs-text { font-size: 18px; font-weight: 900; color: #cbd5e1; text-align: center; margin-top: 5px; }
+    .match-card { background: white; border-radius: 12px; padding: 10px; border: 1px solid #e2e8f0; margin-bottom: 10px; text-align: center; }
+    .ranking-badge { background: #fee2e2; color: #991b1b; border-radius: 6px; font-size: 10px; font-weight: 800; padding: 2px; margin-bottom: 5px; }
+    input[type="number"] { font-size: 20px !important; font-weight: 900 !important; text-align: center !important; }
+    .team-name { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -70,13 +66,13 @@ def salva_su_google(nick, dati):
         js = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(js, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
-        # --- SOSTITUISCI IL LINK SOTTO ---
-        URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0"
+        # INCOLLA IL TUO URL QUI SOTTO
+        URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?usp=sharing"
         sheet = client.open_by_url(URL_FOGLIO).sheet1
         sheet.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"Errore 403 o Connessione: {e}")
+        st.error(f"Errore: {e}. Hai condiviso il foglio con l'email del service account?")
         return False
 
 def calcola_classifiche():
@@ -101,11 +97,12 @@ def calcola_classifiche():
 def get_3rd_team(slot, th_dict):
     disponibili = sorted(th_dict.keys())
     mapping = {"1D": 0, "1B": 1, "1A": 2, "1C": 3, "1G": 4, "1I": 5, "1K": 6, "1L": 7}
-    gr = disponibili[mapping.get(slot, 0)] if mapping.get(slot, 0) < len(disponibili) else "A"
+    idx = mapping.get(slot, 0)
+    gr = disponibili[idx] if idx < len(disponibili) else "A"
     return th_dict.get(gr, "TBD")
 
 # --- 4. INTERFACCIA ---
-user_nick = st.text_input("👤 Nickname:", placeholder="Es. Marco88")
+user_nick = st.text_input("👤 Nickname:", placeholder="Inserisci qui...")
 
 if user_nick:
     tab1, tab2, tab3, tab4 = st.tabs(["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"])
@@ -127,14 +124,12 @@ if user_nick:
                     with cols[c]:
                         with st.container(border=True):
                             st.markdown(f"<div class='ranking-badge'>1: {p1} | X: {px} | 2: {p2}</div>", unsafe_allow_html=True)
-                            f1, f2 = st.columns(2)
-                            f1.image(get_flag(m['h']), width=30); f2.image(get_flag(m['a']), width=30)
-                            f1.markdown(f"<div class='team-name'>{m['h']}</div>", unsafe_allow_html=True)
-                            f2.markdown(f"<div class='team-name'>{m['a']}</div>", unsafe_allow_html=True)
-                            # SCORE ORIZZONTALE
+                            # Nomi Squadre
+                            st.markdown(f"<div class='team-name'>{m['h']} - {m['a']}</div>", unsafe_allow_html=True)
+                            # Punteggi ORIZZONTALI
                             s1, svs, s2 = st.columns([2, 1, 2])
                             st.session_state[f"h_{idx}"] = s1.number_input("H", 0, 9, key=f"nh_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
-                            svs.markdown("<div class='vs-text'>-</div>", unsafe_allow_html=True)
+                            svs.markdown("<div style='text-align:center; font-weight:900; padding-top:5px;'>-</div>", unsafe_allow_html=True)
                             st.session_state[f"a_{idx}"] = s2.number_input("A", 0, 9, key=f"na_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
 
     with tab2:
@@ -150,7 +145,21 @@ if user_nick:
         ranks, th_df, _ = calcola_classifiche()
         th_dict = {row['gr']: row['team'] for _, row in th_df.iterrows()}
         
-        # SEDICESIMI
+        def render_bracket_match(team1, team2, match_id):
+            with st.container(border=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.image(get_flag(team1), width=40)
+                    if st.button(f"{team1}", key=f"btn1_{match_id}", use_container_width=True, type="primary" if st.session_state.get(match_id) == team1 else "secondary"):
+                        st.session_state[match_id] = team1
+                        st.rerun()
+                with c2:
+                    st.image(get_flag(team2), width=40)
+                    if st.button(f"{team2}", key=f"btn2_{match_id}", use_container_width=True, type="primary" if st.session_state.get(match_id) == team2 else "secondary"):
+                        st.session_state[match_id] = team2
+                        st.rerun()
+                return st.session_state.get(match_id, "???")
+
         st.subheader("🏁 Sedicesimi")
         s_pairs = [("S1", ranks["A"][1], ranks["C"][1]), ("S2", ranks["D"][0], get_3rd_team("1D", th_dict)),
                    ("S3", ranks["B"][0], get_3rd_team("1B", th_dict)), ("S4", ranks["F"][0], ranks["E"][1]),
@@ -160,58 +169,43 @@ if user_nick:
                    ("S11", ranks["I"][0], get_3rd_team("1I", th_dict)), ("S12", ranks["J"][0], ranks["L"][1]),
                    ("S13", ranks["K"][0], get_3rd_team("1K", th_dict)), ("S14", ranks["L"][0], ranks["G"][1]),
                    ("S15", ranks["G"][1], ranks["H"][1]), ("S16", ranks["K"][1], get_3rd_team("1L", th_dict))]
+        
         v_s = {}
         cs = st.columns(4)
-        for i, (m_id, t1, t2) in enumerate(s_matches if 's_matches' in locals() else s_pairs):
-            with cs[i//4]:
-                with st.container(border=True):
-                    st.image([get_flag(t1), get_flag(t2)], width=30)
-                    v_s[m_id] = st.radio(f"M{i+1}", [t1, t2], key=f"rs_{m_id}", horizontal=True)
+        for i, (m_id, t1, t2) in enumerate(s_pairs):
+            v_s[m_id] = render_bracket_match(t1, t2, m_id)
 
-        # OTTAVI
         st.subheader("🎯 Ottavi")
         v_o = {}
         co = st.columns(4)
         o_pairs = [("S1","S2"), ("S3","S4"), ("S5","S6"), ("S7","S8"), ("S9","S10"), ("S11","S12"), ("S13","S14"), ("S15","S16")]
         for i, (p1, p2) in enumerate(o_pairs):
-            with co[i//2]:
-                with st.container(border=True):
-                    t1, t2 = v_s[p1], v_s[p2]
-                    st.image([get_flag(t1), get_flag(t2)], width=30)
-                    v_o[f"O{i}"] = st.radio(f"Ottavo {i+1}", [t1, t2], key=f"ro_{i}", horizontal=True)
+            v_o[f"O{i}"] = render_bracket_match(v_s[p1], v_s[p2], f"match_o_{i}")
 
-        # QUARTI
         st.subheader("💎 Quarti")
         v_q = {}
         cq = st.columns(4)
         q_pairs = [("O0","O1"), ("O2","O3"), ("O4","O5"), ("O6","O7")]
         for i, (p1, p2) in enumerate(q_pairs):
-            with cq[i]:
-                with st.container(border=True):
-                    t1, t2 = v_o[p1], v_o[p2]
-                    st.image([get_flag(t1), get_flag(t2)], width=30)
-                    v_q[f"Q{i}"] = st.radio(f"Quarto {i+1}", [t1, t2], key=f"rq_{i}", horizontal=True)
+            v_q[f"Q{i}"] = render_bracket_match(v_o[p1], v_o[p2], f"match_q_{i}")
 
-        # SEMI E FINALE
-        st.subheader("🔥 Fasi Finali")
+        st.subheader("🔥 Semifinali e Finale")
         csemi = st.columns(2)
-        v_semi1 = csemi[0].radio("Semi 1", [v_q["Q0"], v_q["Q1"]], key="semi1")
-        with csemi[0]: st.image([get_flag(v_q["Q0"]), get_flag(v_q["Q1"])], width=40)
-        v_semi2 = csemi[1].radio("Semi 2", [v_q["Q2"], v_q["Q3"]], key="semi2")
-        with csemi[1]: st.image([get_flag(v_q["Q2"]), get_flag(v_q["Q3"])], width=40)
+        v_semi1 = render_bracket_match(v_q["Q0"], v_q["Q1"], "semi1")
+        v_semi2 = render_bracket_match(v_q["Q2"], v_q["Q3"], "semi2")
         
         st.divider()
         f_col = st.columns([1, 2, 1])[1]
         with f_col:
-            with st.container(border=True):
-                st.subheader("🥇 FINALE")
-                t1, t2 = v_semi1, v_semi2
-                st.image([get_flag(t1), get_flag(t2)], width=60)
-                campione = st.selectbox("Vincitore:", [t1, t2])
-                st.session_state["campione"] = campione
-                st.image(get_flag(campione), width=100)
+            st.subheader("🥇 FINALISSIMA")
+            campione = render_bracket_match(v_semi1, v_semi2, "campione_finale")
+            st.session_state["campione"] = campione
+            if campione != "???": st.balloons()
 
     with tab4:
-        if st.button("🚀 INVIA"):
-            dati = {"Gironi": {i: st.session_state.get(f"nh_{i}") for i in range(72)}, "Campione": st.session_state.get("campione")}
-            if salva_su_google(user_nick, dati): st.balloons(); st.success("Salvato!")
+        if st.button("🚀 INVIA PRONOSTICI"):
+            # Raccolta dati gironi dal session state
+            gironi_data = {f"G_{i}": [st.session_state.get(f"h_{i}", 0), st.session_state.get(f"a_{i}", 0)] for i in range(72)}
+            finale_data = {"Campione": st.session_state.get("campione", "N/A")}
+            if salva_su_google(user_nick, {"gironi": gironi_data, "vincitore": finale_data}):
+                st.success("Tutto salvato nel foglio Google!")
