@@ -14,7 +14,7 @@ def connetti_gsheet():
     creds = Credentials.from_service_account_info(info_chiave, scopes=scope)
     client = gspread.authorize(creds)
     # !!! INCOLLA IL TUO URL QUI SOTTO !!!
-    url_foglio = "INCOLLA_QUI_IL_TUO_URL_DI_GOOGLE_SHEETS"
+    url_foglio = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0"
     return client.open_by_url(url_foglio)
 
 # --- 2. CARICAMENTO PARTITE (WIKIPEDIA) ---
