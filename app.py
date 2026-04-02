@@ -119,11 +119,16 @@ def salva_su_google(nick, dati):
         js = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(js, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         client = gspread.authorize(creds)
+        
+        # --- INCOLLA QUI IL TUO LINK ---
         URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0" 
+        
         sheet = client.open_by_url(URL_FOGLIO).sheet1
         sheet.append_row([nick, json.dumps(dati)])
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Errore tecnico: {e}")
+        return False
 
 # --- 4. INTERFACCIA ---
 st.title("🏆 FIFA World Cup 2026 Prediction Contest")
@@ -158,8 +163,9 @@ if user_nick:
                             c2.markdown(f"<div class='team-name'>{m['a']}</div>", unsafe_allow_html=True)
                             
                             i1, i2 = st.columns(2)
-                            st.session_state[f"h_{idx}"] = i1.number_input("H", 0, 9, key=f"in_h_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
-                            st.session_state[f"a_{idx}"] = i2.number_input("A", 0, 9, key=f"in_a_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
+                            # FISSIAMO LE CHIAVI PER LA COMPILAZIONE AUTOMATICA
+                            st.number_input("H", 0, 9, key=f"h_{idx}", label_visibility="collapsed")
+                            st.number_input("A", 0, 9, key=f"a_{idx}", label_visibility="collapsed")
 
     with tab2:
         ranks, b_thirds, stats = calcola_classifiche()
@@ -239,10 +245,11 @@ if user_nick:
     with tab4:
         st.header("Invia i Pronostici")
         if st.button("SALVA DEFINITIVAMENTE", type="primary"):
+            # RACCOLTA DATI CORRETTA DALLE CHIAVI WIDGET
             dati = {
-                "Gironi": {i: st.session_state.get(f"h_{i}") for i in range(72)},
-                "Campione": st.session_state.get("campione")
+                "Gironi": {f"M_{i}": [st.session_state.get(f"h_{i}", 0), st.session_state.get(f"a_{i}", 0)] for i in range(72)},
+                "Campione": st.session_state.get("campione", "Non assegnato")
             }
             if salva_su_google(user_nick, dati):
                 st.balloons()
-                st.success("Pronostici salvati! Buona fortuna!")
+                st.success("Pronostici salvati su Google Sheets! Buona fortuna!")
