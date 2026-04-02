@@ -3,11 +3,12 @@ import pandas as pd
 import json
 import gspread
 import random
+import time
 import urllib.parse
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE E GRAFICA ---
-st.set_page_config(page_title="FIFA World Cup 2026 Contest", layout="wide")
+st.set_page_config(page_title="WC 2026 Contest", layout="wide")
 
 st.markdown("""
 <style>
@@ -46,14 +47,14 @@ if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
         st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = None  # Parte vuoto
-        st.session_state[f"adm_a_{i}"] = None  # Parte vuoto
+        st.session_state[f"adm_h_{i}"] = None  # Partono rigorosamente vuoti
+        st.session_state[f"adm_a_{i}"] = None  # Partono rigorosamente vuoti
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
     st.session_state["initialized"] = True
 
-# FORZATURA RESET ZERI ADMIN (Spazza via i vecchi 0-0 rimasti in memoria nel browser)
+# --- PULIZIA INIZIALE ZERI ADMIN ---
 if "admin_force_blank" not in st.session_state:
     for i in range(72):
         if st.session_state.get(f"adm_h_{i}") == 0: st.session_state[f"adm_h_{i}"] = None
@@ -90,7 +91,7 @@ def get_flag(t):
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE GOOGLE SHEETS & ADMIN LOGIC ---
+# --- 4. CONNESSIONE GOOGLE SHEETS & MOTORE RANKING CORAZZATO ---
 def get_gspread_client():
     conf = json.loads(st.secrets["service_account"])
     creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -108,38 +109,51 @@ def invia_google_sheets(tab_name, nick, dati):
         ws.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API e i permessi.")
+        st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API.")
         return False
 
 def safe_json_parse(val):
     try: return json.loads(val)
     except: return {}
 
+# ESTRATTORE NUMERI INFALLIBILE
+def force_int(val):
+    try:
+        if val is None: return None
+        s = str(val).strip().lower()
+        if s == "" or s == "none" or s == "null": return None
+        return int(float(s))
+    except:
+        return None
+
 def get_admin_dashboard_data():
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
+        
         try: ws_pro = sh.worksheet("Pronostici")
         except: return pd.DataFrame(), [], None
+        
         try: ws_real = sh.worksheet("RisultatiReali")
         except: ws_real = None
         
         dati_utenti = ws_pro.get_all_values()
         if not dati_utenti: return pd.DataFrame(), [], ws_pro
         
-        # MOTORE DI ESTRAZIONE RISULTATI REALI CORAZZATO (Supporta formati vecchi e nuovi)
+        # Lettura Corazzata Risultati Reali Admin
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
             for row in reversed(dati_reali):
                 if len(row) >= 2:
                     data = safe_json_parse(row[1])
-                    if "Gironi" in data:
-                        reali_dict = data["Gironi"]
-                        break
-                    elif "0" in data or "G_A Messico-Sudafrica" in data:
-                        reali_dict = data
-                        break
+                    if isinstance(data, dict):
+                        if "Gironi" in data:
+                            reali_dict = data["Gironi"]
+                            break
+                        elif any(k.startswith("G_") or str(k).isdigit() for k in data.keys()):
+                            reali_dict = data
+                            break
 
         classifica = []
         nomi_utenti = []
@@ -149,60 +163,60 @@ def get_admin_dashboard_data():
             
             nick = row[0]
             user_data = safe_json_parse(row[1])
-            if not user_data: continue
+            if not isinstance(user_data, dict): continue
+            
             nomi_utenti.append((nick, idx + 1))
             
-            # Gestione corazzata del salvataggio utente
             user_gironi = user_data.get("Gironi", user_data)
+            if not isinstance(user_gironi, dict): continue
+            
             punti_tot = 0
             punti_bonus = 0
             
-            # MOTORE DI LETTURA PUNTI (Infallibile sia per vecchie chiavi numeriche che stringhe)
+            # --- MOTORE DI CALCOLO ESTREMO ---
             for i, m in enumerate(MATCHES):
-                match_key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
-                match_key_num = str(i)
+                key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+                key_num = str(i)
                 
-                # Cerca i valori ovunque siano
-                u_vals = user_gironi.get(match_key_str)
-                if u_vals is None: u_vals = user_gironi.get(match_key_num)
+                # Cerca i Reali (sia con nome chiave che con numero)
+                r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
                 
-                r_vals = reali_dict.get(match_key_str)
-                if r_vals is None: r_vals = reali_dict.get(match_key_num)
-                
-                if u_vals is not None and r_vals is not None:
-                    try:
-                        r_h_val, r_a_val = r_vals[0], r_vals[1]
+                if isinstance(r_vals, list) and len(r_vals) >= 2:
+                    r_h = force_int(r_vals[0])
+                    r_a = force_int(r_vals[1])
+                    
+                    # SE L'ADMIN HA INSERITO LA PARTITA (non è vuota)
+                    if r_h is not None and r_a is not None:
                         
-                        # IGNORA PARTITA SE L'ADMIN HA LASCIATO IN BIANCO
-                        if r_h_val is None or r_a_val is None or str(r_h_val).strip() == "" or str(r_a_val).strip() == "":
-                            continue
+                        # Cerca Pronostico Utente
+                        u_vals = user_gironi.get(key_str, user_gironi.get(key_num))
+                        
+                        # Assume 0-0 se l'utente ha compilato in modo parziale
+                        u_h, u_a = 0, 0 
+                        if isinstance(u_vals, list) and len(u_vals) >= 2:
+                            uh_f = force_int(u_vals[0])
+                            ua_f = force_int(u_vals[1])
+                            if uh_f is not None: u_h = uh_f
+                            if ua_f is not None: u_a = ua_f
                             
-                        r_h, r_a = int(float(r_h_val)), int(float(r_a_val))
-                        
-                        u_h_val, u_a_val = u_vals[0], u_vals[1]
-                        u_h = int(float(u_h_val)) if u_h_val not in [None, ""] else 0
-                        u_a = int(float(u_a_val)) if u_a_val not in [None, ""] else 0
+                        # Calcolo Punti Ranking Esatto
+                        u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
+                        r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
                         
                         p1 = RANKING.get(m['h'], 0)
                         p2 = RANKING.get(m['a'], 0)
                         px = (p1 + p2) // 2
                         
-                        u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
-                        r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
-                        
-                        # Calcolo Punti Ranking
                         if u_esito == r_esito:
                             if r_esito == 1: punti_tot += p1
                             elif r_esito == 2: punti_tot += p2
                             else: punti_tot += px
-                        
-                        # Calcolo Punti Bonus
+                            
+                        # Bonus +50 pt
                         if u_h == r_h and u_a == r_a:
                             punti_tot += 50
                             punti_bonus += 50
-                    except Exception:
-                        continue
-                        
+                            
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
         df = pd.DataFrame(classifica)
@@ -228,7 +242,7 @@ def calcola_classifiche(prefisso=""):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
         
-        # Protezione per Admin UI per non fare crashare la classifica con campi vuoti
+        # Ignora i vuoti dell'Admin per evitare crash in UI
         if h is None or a is None or str(h).strip() == "" or str(a).strip() == "":
             continue
             
@@ -407,13 +421,15 @@ if user:
             st.header("👑 Pannello Admin")
             
             if st.session_state.get("admin_saved_success"):
-                st.success("✅ Risultati Reali salvati nel database! La classifica è aggiornata.")
+                st.success("✅ Risultati Reali salvati nel database! La classifica ufficiale è stata aggiornata.")
                 st.session_state["admin_saved_success"] = False
 
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
+                st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato 'Salva' nell'apposita tab.")
+                
                 df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
                 
                 if not df_ranking.empty:
@@ -441,7 +457,7 @@ if user:
                     if nomi_utenti:
                         col_del1, col_del2 = st.columns([2, 1])
                         with col_del1:
-                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga {x[1]})")
+                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga Foglio: {x[1]})")
                         with col_del2:
                             st.write("<br>", unsafe_allow_html=True)
                             if st.button("🗑️ Elimina", type="primary"):
@@ -451,7 +467,7 @@ if user:
                                 else:
                                     st.error("Errore durante l'eliminazione.")
                 else:
-                    st.info("Nessun partecipante ha ancora giocato oppure nessun punteggio valido calcolato.")
+                    st.warning("Nessun partecipante o nessun risultato salvato per calcolare i punti.")
 
             with adm_tabs[1]:
                 col_btn_test, _ = st.columns([1, 2])
@@ -462,7 +478,7 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # Input puliti di base, calcolo ignorerà i vuoti
+                # I campi Admin non avranno alcun pre-caricamento "0"
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -486,7 +502,8 @@ if user:
                     
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                         st.session_state["admin_saved_success"] = True
-                        st.rerun() 
+                        time.sleep(1) # Attende che Google Sheets indicizzi i dati
+                        st.rerun()
 
     # --- INVIO ---
     with tabs[3]:
@@ -503,4 +520,5 @@ if user:
             
             if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
                 st.session_state["user_saved_success"] = True
+                time.sleep(1) # Rende l'esperienza utente più solida
                 st.rerun()
