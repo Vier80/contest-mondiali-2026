@@ -31,6 +31,9 @@ st.markdown("""
     
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 4px; }
     .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 5px; }
+    
+    .admin-match-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+    .admin-match-title { font-size: 12px; font-weight: 800; text-align: center; color: #475569; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -41,7 +44,6 @@ if "initialized" not in st.session_state:
         st.session_state[f"a_{i}"] = 0
         st.session_state[f"adm_h_{i}"] = 0
         st.session_state[f"adm_a_{i}"] = 0
-    # Inizializzo le partite del bracket
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
@@ -77,25 +79,105 @@ def get_flag(t):
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE GOOGLE SHEETS ---
+# --- 4. CONNESSIONE GOOGLE SHEETS & ADMIN LOGIC ---
+def get_gspread_client():
+    conf = json.loads(st.secrets["service_account"])
+    creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+    return gspread.authorize(creds)
+
+# ⚠️ INSERISCI QUI IL TUO ID DEL FOGLIO ⚠️
+ID_DEL_FOGLIO = "1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8" 
+
 def invia_google_sheets(tab_name, nick, dati):
     try:
-        conf = json.loads(st.secrets["service_account"])
-        creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-        gc = gspread.authorize(creds)
-        
-        # INSERISCI QUI L'ID DEL FOGLIO!
-        ID_DEL_FOGLIO = "1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8" 
-        
+        gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
-        ws = sh.worksheet(tab_name) if tab_name in [w.title for w in sh.worksheets()] else sh.get_worksheet(0)
+        try: ws = sh.worksheet(tab_name)
+        except: ws = sh.add_worksheet(title=tab_name, rows="100", cols="5")
         ws.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"❌ ERRORE: Impossibile scrivere sul file.")
+        st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API e i permessi.")
         return False
 
-# --- 5. CALCOLI CLASSIFICHE ---
+def get_admin_dashboard_data():
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
+        try: ws_pro = sh.worksheet("Pronostici")
+        except: return pd.DataFrame(), [], None
+        try: ws_real = sh.worksheet("RisultatiReali")
+        except: ws_real = None
+        
+        dati_utenti = ws_pro.get_all_values()
+        if not dati_utenti: return pd.DataFrame(), [], ws_pro
+        
+        # Recupera ultimi risultati reali salvati dall'admin
+        reali_dict = {}
+        if ws_real:
+            dati_reali = ws_real.get_all_values()
+            if dati_reali:
+                last_real_json = json.loads(dati_reali[-1][1])
+                reali_dict = last_real_json.get("Gironi", {})
+
+        classifica = []
+        nomi_utenti = []
+        
+        for idx, row in enumerate(dati_utenti):
+            if len(row) < 2: continue
+            nick = row[0]
+            nomi_utenti.append((nick, idx + 1)) # Salvo l'indice reale della riga per l'eliminazione
+            try: user_data = json.loads(row[1])
+            except: continue
+            
+            user_gironi = user_data.get("Gironi", {})
+            punti_tot = 0
+            punti_bonus = 0
+            
+            for match_key, scores in user_gironi.items():
+                if match_key in reali_dict:
+                    u_h, u_a = scores[0], scores[1]
+                    r_h, r_a = reali_dict[match_key][0], reali_dict[match_key][1]
+                    
+                    # Estrae i nomi delle squadre dalla chiave (Es: "G_A Messico-Sudafrica")
+                    team_str = match_key.split(" ")[1]
+                    h_team, a_team = team_str.split("-")[0], team_str.split("-")[1]
+                    
+                    p1 = RANKING.get(h_team, 0)
+                    p2 = RANKING.get(a_team, 0)
+                    px = (p1 + p2) // 2
+                    
+                    # Calcolo Esito
+                    u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
+                    r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
+                    
+                    if u_esito == r_esito:
+                        if r_esito == 1: punti_tot += p1
+                        elif r_esito == 2: punti_tot += p2
+                        else: punti_tot += px
+                    
+                    # Calcolo Bonus Risultato Esatto
+                    if u_h == r_h and u_a == r_a:
+                        punti_tot += 50
+                        punti_bonus += 50
+                        
+            classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
+            
+        df = pd.DataFrame(classifica)
+        if not df.empty:
+            df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
+            df.index += 1
+        return df, nomi_utenti, ws_pro
+    except Exception as e:
+        return pd.DataFrame(), [], None
+
+def elimina_utente(ws, row_index):
+    try:
+        ws.delete_rows(row_index)
+        return True
+    except: return False
+
+# --- 5. CALCOLI CLASSIFICHE GIRONI (UI) ---
 def calcola_classifiche(prefisso=""):
     stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
@@ -201,11 +283,11 @@ if user:
                     st.session_state[prefisso+mid]=t2; st.rerun()
             return st.session_state[prefisso+mid]
 
-        st.info("I nomi appaiono in base alle classifiche dei gironi. Clicca sui vincitori per farli avanzare nel tabellone.")
+        st.info("Clicca sui vincitori per farli avanzare nel tabellone.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
         with c_sed:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Sedicesimi (32)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Sedicesimi</p>", unsafe_allow_html=True)
             s1 = t_box(s_t("A",0), s_t3(0), "S1")
             s2 = t_box(s_t("B",1), s_t("C",1), "S2")
             s3 = t_box(s_t("D",0), s_t3(1), "S3")
@@ -224,7 +306,7 @@ if user:
             s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Ottavi (16)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Ottavi</p>", unsafe_allow_html=True)
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
             o1 = t_box(s1, s2, "O1")
             st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
@@ -243,7 +325,7 @@ if user:
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Quarti (8)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Quarti</p>", unsafe_allow_html=True)
             st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
             q1 = t_box(o1, o2, "Q1")
             st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
@@ -254,7 +336,7 @@ if user:
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Semi (4)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='font-weight:800; color:#475569;'>Semi</p>", unsafe_allow_html=True)
             st.markdown("<div style='height:300px;'></div>", unsafe_allow_html=True)
             sem1 = t_box(q1, q2, "SEM1")
             st.markdown("<div style='height:580px;'></div>", unsafe_allow_html=True)
@@ -274,57 +356,70 @@ if user:
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            adm_tabs = st.tabs(["1. Nomi Partecipanti", "2. Risultati Reali", "3. Bracket Reale"])
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti & Gestione", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
-                st.write("### 🏆 Nomi di chi ha inviato i pronostici")
-                try:
-                    conf = json.loads(st.secrets["service_account"])
-                    creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-                    gc = gspread.authorize(creds)
-                    ID_DEL_FOGLIO = "INSERISCI_QUI_SOLO_L_ID_DEL_FOGLIO" # Metti lo stesso ID anche qui!
-                    sh = gc.open_by_key(ID_DEL_FOGLIO)
-                    ws = sh.worksheet("Pronostici")
-                    dati = ws.get_all_values()
-                    utenti = list(dict.fromkeys([row[0] for row in dati if len(row) > 0]))
-                    if utenti:
-                        st.dataframe(pd.DataFrame({"Partecipante": utenti, "Stato": "Salvato"}), use_container_width=True)
-                    else:
-                        st.info("Nessun partecipante ha ancora giocato.")
-                except Exception as e:
-                    st.warning("Assicurati di aver configurato il file Google Sheets per vedere la lista.")
+                st.write("### Classifica Ufficiale")
+                df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
+                
+                if not df_ranking.empty:
+                    st.dataframe(df_ranking, use_container_width=True)
+                    st.divider()
+                    st.write("#### Gestione Utenti")
+                    col_del1, col_del2 = st.columns([2, 1])
+                    with col_del1:
+                        utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: x[0])
+                    with col_del2:
+                        st.write("<br>", unsafe_allow_html=True)
+                        if st.button("🗑️ Elimina", type="primary"):
+                            if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
+                                st.success(f"{utente_da_eliminare[0]} eliminato! Ricarica la pagina.")
+                else:
+                    st.info("Nessun dato o classifica ancora disponibile.")
 
             with adm_tabs[1]:
-                if st.button("🪄 Autocompila Risultati Reali (Test Admin)"):
-                    for i in range(72):
-                        st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
-                        st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
-                    st.rerun()
-                for i, m in enumerate(MATCHES):
-                    with st.expander(f"{m['h']} vs {m['a']}"):
-                        ca1, ca2 = st.columns(2)
-                        ca1.number_input("H", 0, 9, key=f"adm_h_{i}")
-                        ca2.number_input("A", 0, 9, key=f"adm_a_{i}")
+                col_btn_test, _ = st.columns([1, 2])
+                with col_btn_test:
+                    if st.button("🪄 Autocompila Reali (Test)"):
+                        for i in range(72):
+                            st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
+                            st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
+                        st.rerun()
+                
+                # Layout Compatto Risultati Reali
+                for r in range(18):
+                    cols = st.columns(4)
+                    for c in range(4):
+                        idx = r * 4 + c
+                        if idx < 72:
+                            m = MATCHES[idx]
+                            with cols[c]:
+                                st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
+                                ci1, ci2 = st.columns(2)
+                                ci1.number_input("H", 0, 9, key=f"adm_h_{idx}", label_visibility="collapsed")
+                                ci2.number_input("A", 0, 9, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                st.markdown("</div>", unsafe_allow_html=True)
                         
             with adm_tabs[2]:
                 render_wimbledon(prefisso="adm_")
                 st.divider()
-                if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary"):
-                    payload_adm = {i: [st.session_state[f"adm_h_{i}"], st.session_state[f"adm_a_{i}"]] for i in range(72)}
+                if st.button("💾 SALVA RISULTATI E TABELLONE REALE IN GOOGLE SHEETS", type="primary", use_container_width=True):
+                    # Salva nome partita nel payload per Google Sheets
+                    payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"adm_h_{i}"], st.session_state[f"adm_a_{i}"]] for i in range(72)}
                     
-                    # Salva anche il tabellone admin per Google Sheets
                     chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
-                    payload_adm_bracket = {k: st.session_state[k] for k in chiavi_bracket_adm}
+                    payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
                     
-                    invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket})
+                    if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
+                        st.success("Risultati Reali salvati con successo!")
 
     # --- INVIO ---
     with tabs[3]:
         st.write("### 🚀 Fase Finale")
         if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            payload_user = {i: [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+            # Salva nome partita nel payload utente per chiarezza su Google Sheets
+            payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
             
-            # Recupera anche il Bracket compilato dall'utente
             chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
             payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
             
