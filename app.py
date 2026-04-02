@@ -8,29 +8,40 @@ from google.oauth2.service_account import Credentials
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="WC 2026 Contest PRO", layout="wide")
 
-# Logo (Placeholder ufficiale FIFA 2026)
-LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/2026_FIFA_World_Cup_logo.svg/1200px-2026_FIFA_World_Cup_logo.svg.png"
+# LOGO E COLORI
+LOGO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/2026_FIFA_World_Cup_logo.svg/512px-2026_FIFA_World_Cup_logo.svg.png"
 
-# CSS: DARK MODE, TAB GRANDI E LOGIN IN ALTO
-st.markdown("""
+# CSS: STILE DARK AD ALTO CONTRASTO
+st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    .stApp { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
     
-    /* Ingrandimento TAB */
-    button[data-baseweb="tab"] p { font-size: 22px !important; font-weight: 800 !important; color: #94a3b8 !important; }
-    button[data-baseweb="tab"][aria-selected="true"] p { color: #38bdf8 !important; }
+    .stApp {{ background-color: #0e1117; color: #ffffff; font-family: 'Inter', sans-serif; }}
     
-    /* Login Admin in alto a dx */
-    .admin-login { position: absolute; top: 0; right: 0; padding: 10px; }
+    /* Ingrandimento TAB e contrasto */
+    button[data-baseweb="tab"] p {{ font-size: 20px !important; font-weight: 700 !important; color: #adbac7 !important; }}
+    button[data-baseweb="tab"][aria-selected="true"] p {{ color: #58a6ff !important; }}
 
     /* Card Partite */
-    .match-card { background: #1e293b; border-radius: 12px; padding: 10px; border: 1px solid #334155; margin-bottom: 10px; }
-    .ranking-badge { background: #0369a1; color: #e0f2fe; border-radius: 6px; font-size: 11px; font-weight: 800; padding: 3px; text-align: center; margin-bottom: 8px; }
+    .match-card {{
+        background: #161b22; border-radius: 12px; padding: 20px; border: 1px solid #30363d; margin-bottom: 15px;
+    }}
     
-    /* Input Numerici */
-    input[type="number"] { background-color: #334155 !important; color: white !important; font-size: 20px !important; font-weight: 900 !important; border: 1px solid #475569 !important; text-align: center !important; }
-    .team-text { font-size: 12px; font-weight: 700; color: #f1f5f9; text-align: center; }
+    /* Badge Ranking (Punteggi 1X2) */
+    .ranking-badge {{
+        background: #238636; color: #ffffff; border-radius: 6px; font-size: 12px; font-weight: 800;
+        padding: 6px; text-align: center; margin-bottom: 10px;
+    }}
+
+    /* Input Numerici (Grandi e Bianchi) */
+    input[type="number"] {{
+        background-color: #0d1117 !important; color: #ffffff !important;
+        font-size: 24px !important; font-weight: 900 !important; border: 2px solid #30363d !important;
+        text-align: center !important; border-radius: 8px !important;
+    }}
+    
+    .team-label {{ font-size: 14px; font-weight: 700; color: #ffffff; text-align: center; }}
+    .vs-text {{ color: #8b949e; font-weight: 900; font-size: 20px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -45,7 +56,7 @@ RANKING = {
 }
 
 @st.cache_data
-def get_data():
+def get_matches_data():
     g = {
         "A": ["Messico", "Sudafrica", "Sudcorea", "Repubblica Ceca"], "B": ["Canada", "Bosnia Erzegovina", "Qatar", "Svizzera"],
         "C": ["Brasile", "Marocco", "Haiti", "Scozia"], "D": ["USA", "Paraguay", "Australia", "Turchia"],
@@ -60,33 +71,41 @@ def get_data():
             ml.append({"gr": gid, "h": teams[h], "a": teams[a]})
     return g, ml
 
-G_TEAMS, MATCHES = get_data()
+G_TEAMS, MATCHES = get_matches_data()
 
 def get_flag(t):
     if not t or t == "???" or t == "Non assegnato": return "https://flagcdn.com/w160/un.png"
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 3. LOGIN ADMIN IN ALTO A DESTRA ---
-col_head, col_login = st.columns([7, 3])
-with col_head:
-    st.image(LOGO_URL, width=180)
-with col_login:
-    st.write("")
-    admin_pw = st.text_input("🔓 Login Admin", type="password", placeholder="Password...")
-    is_admin = (admin_pw == "mondiali2026")
+# --- 3. GOOGLE SHEETS CONNECTION ---
+def salva_dati_google(sheet_name, nick, dati):
+    try:
+        info = json.loads(st.secrets["service_account"])
+        creds = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+        client = gspread.authorize(creds)
+        # ID FOGLIO (Estrailo dal tuo URL)
+        URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0"
+        sh = client.open_by_url(URL_FOGLIO)
+        try: ws = sh.worksheet(sheet_name)
+        except: ws = sh.get_worksheet(0)
+        ws.append_row([nick, json.dumps(dati)])
+        return True
+    except Exception as e:
+        st.error(f"Errore Google Sheets: {e}")
+        return False
 
 # --- 4. LOGICA CLASSICHE ---
 def calcola_classifiche():
     res = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
-        h_val = st.session_state.get(f"h_{i}", 0)
-        a_val = st.session_state.get(f"a_{i}", 0)
+        h_g = st.session_state.get(f"h_{i}", 0)
+        a_g = st.session_state.get(f"a_{i}", 0)
         sh, sa = res[m['gr']][m['h']], res[m['gr']][m['a']]
-        sh["GF"] += h_val; sa["GF"] += a_val
-        sh["DR"] += (h_val - a_val); sa["DR"] += (a_val - h_val)
-        if h_val > a_val: sh["Pt"] += 3
-        elif a_val > h_val: sa["Pt"] += 3
+        sh["GF"] += h_g; sa["GF"] += a_g
+        sh["DR"] += (h_g - a_g); sa["DR"] += (a_g - h_g)
+        if h_g > a_g: sh["Pt"] += 3
+        elif a_g > h_g: sa["Pt"] += 3
         else: sh["Pt"] += 1; sa["Pt"] += 1
     
     final_ranks = {}
@@ -94,46 +113,27 @@ def calcola_classifiche():
     for gid, ts in res.items():
         df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
         final_ranks[gid] = df.index.tolist()
-        thirds.append({"team": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"], "gr": gid})
-    
-    best_thirds = pd.DataFrame(thirds).sort_values(["Pt", "DR", "GF"], ascending=False).head(8)
-    return final_ranks, best_thirds, res
+        thirds.append({"team": df.index[2], "Pt": df.iloc[2]["Pt"], "gr": gid})
+    return final_ranks, pd.DataFrame(thirds).sort_values("Pt", ascending=False).head(8), res
 
-def get_3rd_team(slot, th_dict):
-    disponibili = sorted(th_dict.keys())
-    mapping = {"1D": 0, "1B": 1, "1A": 2, "1C": 3, "1G": 4, "1I": 5, "1K": 6, "1L": 7}
-    idx = mapping.get(slot, 0)
-    gr_key = disponibili[idx] if idx < len(disponibili) else "???"
-    return th_dict.get(gr_key, "Non assegnato")
+# --- 5. INTERFACCIA ---
+col_logo, col_adm = st.columns([7, 3])
+with col_logo: st.image(LOGO_URL, width=200)
+with col_adm: 
+    adm_pass = st.text_input("🔓 Admin Area", type="password", placeholder="Password...")
+    is_admin = (adm_pass == "mondiali2026")
 
-# --- 5. FUNZIONE SALVATAGGIO ---
-def salva_su_google(tab, nick, payload):
-    try:
-        info = json.loads(st.secrets["service_account"])
-        creds = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-        client = gspread.authorize(creds)
-        URL_FOGLIO = "" # <--- INCOLLA IL TUO LINK GOOGLE SHEETS
-        sh = client.open_by_url(URL_FOGLIO)
-        try: ws = sh.worksheet(tab)
-        except: ws = sh.get_worksheet(0)
-        ws.append_row([nick, json.dumps(payload)])
-        return True
-    except Exception as e:
-        st.error(f"Errore connessione: {e}")
-        return False
-
-# --- 6. INTERFACCIA UTENTE ---
-user_nick = st.text_input("👤 Inserisci il tuo Nickname per iniziare:", placeholder="Es. Marco88")
+user_nick = st.text_input("👤 Nickname Partecipante:", placeholder="Inserisci il tuo nome...")
 
 if user_nick:
-    t_labels = ["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"]
-    if is_admin: t_labels.append("⚙️ Area Admin")
-    tabs = st.tabs(t_labels)
+    tab_list = ["🌍 Gironi", "📊 Classifiche", "⚔️ Bracket", "🚀 Invia"]
+    if is_admin: tab_list.append("⚙️ Admin & Ranking")
+    tabs = st.tabs(tab_list)
 
     # --- TAB GIRONI ---
     with tabs[0]:
-        st.write("### 🏟️ Fase a Gironi")
-        if st.button("🪄 Compila Random (User)"):
+        st.info("Inserisci i risultati. I punti 1-X-2 sono calcolati in base al Ranking FIFA.")
+        if st.button("🪄 Compilazione Automatica (Risultati casuali)"):
             for i in range(72):
                 st.session_state[f"h_{i}"] = random.randint(0, 4)
                 st.session_state[f"a_{i}"] = random.randint(0, 4)
@@ -148,91 +148,90 @@ if user_nick:
                     p1, p2, px = RANKING[m['a']], RANKING[m['h']], (RANKING[m['h']]+RANKING[m['a']])//2
                     with cols[c]:
                         with st.container(border=True):
-                            st.markdown(f"<div class='ranking-badge'>Punti: 1={p1} | X={px} | 2={p2}</div>", unsafe_allow_html=True)
-                            c_f1, c_in1, c_vs, c_in2, c_f2 = st.columns([1, 1.5, 0.4, 1.5, 1])
-                            c_f1.image(get_flag(m['h']), width=30)
-                            st.session_state[f"h_{idx}"] = c_in1.number_input("H", 0, 9, key=f"nh_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
-                            c_vs.markdown("<p style='padding-top:8px; font-weight:900;'>–</p>", unsafe_allow_html=True)
-                            st.session_state[f"a_{idx}"] = c_in2.number_input("A", 0, 9, key=f"na_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
-                            c_f2.image(get_flag(m['a']), width=30)
-                            st.markdown(f"<div class='team-text'>{m['h']} vs {m['a']}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div class='ranking-badge'>PUNTI: 1={p1} | X={px} | 2={p2}</div>", unsafe_allow_html=True)
+                            
+                            # Layout Orizzontale Score
+                            sc1, sc_in1, sc_vs, sc_in2, sc2 = st.columns([1, 1.3, 0.4, 1.3, 1])
+                            sc1.image(get_flag(m['h']), width=35)
+                            sc_in1.number_input("H", 0, 9, key=f"h_{idx}", value=st.session_state.get(f"h_{idx}", 0), label_visibility="collapsed")
+                            sc_vs.markdown("<p style='padding-top:10px; text-align:center;'>-</p>", unsafe_allow_html=True)
+                            sc_in2.number_input("A", 0, 9, key=f"a_{idx}", value=st.session_state.get(f"a_{idx}", 0), label_visibility="collapsed")
+                            sc2.image(get_flag(m['a']), width=35)
+                            
+                            st.markdown(f"<p class='team-label'>{m['h']} vs {m['a']}</p>", unsafe_allow_html=True)
 
-    # --- TAB CLASSIFICHE ---
-    with tabs[1]:
-        ranks, b_thirds_df, stats = calcola_classifiche()
-        st.write("### 📊 Classifiche Gruppi")
-        for i in range(0, 12, 3):
-            cols = st.columns(3)
-            for k in range(3):
-                gid = list(G_TEAMS.keys())[i+k]
-                df = pd.DataFrame(stats[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-                cols[k].dataframe(df, use_container_width=True)
-        st.divider()
-        st.write("### 🏁 Migliori Terze")
-        st.table(b_thirds_df)
-
-    # --- TAB BRACKET (TENNISTICO SX-DX) ---
+    # --- TAB BRACKET TENNISTICO ---
     with tabs[2]:
         ranks, th_df, _ = calcola_classifiche()
         th_dict = {row['gr']: row['team'] for _, row in th_df.iterrows()}
         
-        def render_compact(t1, t2, mid, lbl):
+        def render_match_box(t1, t2, mid, label):
             with st.container(border=True):
-                st.caption(lbl)
+                st.caption(label)
                 c1, c2 = st.columns(2)
                 with c1:
                     st.image(get_flag(t1), width=40)
-                    if st.button(f"{t1}", key=f"kb1_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid)==t1 else "secondary"):
-                        st.session_state[mid]=t1; st.rerun()
+                    if st.button(f"{t1}", key=f"btn1_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid) == t1 else "secondary"):
+                        st.session_state[mid] = t1; st.rerun()
                 with c2:
                     st.image(get_flag(t2), width=40)
-                    if st.button(f"{t2}", key=f"kb2_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid)==t2 else "secondary"):
-                        st.session_state[mid]=t2; st.rerun()
+                    if st.button(f"{t2}", key=f"btn2_{mid}", use_container_width=True, type="primary" if st.session_state.get(mid) == t2 else "secondary"):
+                        st.session_state[mid] = t2; st.rerun()
                 return st.session_state.get(mid, "???")
 
-        col_sed, col_ott, col_qua, col_fin = st.columns([1, 1, 1, 1.3])
+        # Layout Tennistico SX -> DX
+        st.subheader("⚔️ Tabellone Eliminazione Diretta")
+        c_sed, c_ott, c_qua, c_fin = st.columns([1.2, 1.1, 1.1, 1.4])
         
-        with col_sed:
+        with c_sed:
             st.write("📌 Sedicesimi")
-            v_s1 = render_compact(ranks["A"][1], ranks["C"][1], "S1", "M1")
-            v_s2 = render_compact(ranks["D"][0], get_3rd_team("1D", th_dict), "S2", "M2")
-        with col_ott:
+            v_s1 = render_match_box(ranks["A"][1], ranks["C"][1], "S1", "Match 1")
+            v_s2 = render_match_box(ranks["D"][0], "3rd Group", "S2", "Match 2")
+
+        with c_ott:
             st.write("🎯 Ottavi")
-            v_o1 = render_compact(v_s1, v_s2, "O1", "Ottavo 1")
-        with col_qua:
+            v_o1 = render_match_box(v_s1, v_s2, "O1", "Ottavo 1")
+
+        with c_qua:
             st.write("💎 Quarti")
-            v_q1 = render_compact(v_o1, "TBD", "Q1", "Quarto 1")
-        with col_fin:
-            st.write("🔥 Semi & Finale")
-            v_semi1 = render_compact(v_q1, "TBD", "semi1", "Semi 1")
+            v_q1 = render_match_box(v_o1, "TBD", "Q1", "Quarto 1")
+
+        with c_fin:
+            st.write("🔥 Semifinali e Finale")
+            v_semi1 = render_match_box(v_q1, "TBD", "semi1", "Semi 1")
             st.divider()
-            campione = render_compact(v_semi1, "TBD", "f_camp", "🏆 CAMPIONE")
+            campione = render_match_box(v_semi1, "Finalista 2", "win", "🏆 CAMPIONE")
             st.session_state["campione"] = campione
             if campione != "???" and campione != "": st.balloons()
 
     # --- TAB AREA ADMIN ---
     if is_admin:
         with tabs[-1]:
-            st.header("⚙️ Area Admin - Risultati Ufficiali")
-            if st.button("🪄 Auto-compila Risultati Admin (Test)"):
+            st.header("⚙️ Area Gestione Admin")
+            if st.button("🪄 Auto-compila Risultati Reali (Test)"):
                 for i in range(72):
                     st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
                     st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                 st.rerun()
             
-            for i, m in enumerate(MATCHES):
-                with st.expander(f"G{m['gr']}: {m['h']} vs {m['a']}"):
+            st.subheader("📊 Classifica Partecipanti")
+            # Qui andrebbe la logica di calcolo punti leggendo il foglio 'Pronostici'
+            st.info("I punti verranno calcolati confrontando i pronostici salvati con i risultati reali.")
+
+            with st.expander("Inserisci Risultati Reali"):
+                for i, m in enumerate(MATCHES):
                     c1, c2 = st.columns(2)
-                    st.session_state[f"adm_h_{i}"] = c1.number_input("H", 0,9, key=f"ah_{i}", value=st.session_state.get(f"adm_h_{i}",0))
-                    st.session_state[f"adm_a_{i}"] = c2.number_input("A", 0,9, key=f"aa_{i}", value=st.session_state.get(f"adm_a_{i}",0))
-            
-            if st.button("💾 SALVA RISULTATI ADMIN"):
-                d = {i: [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
-                salva_su_google("RisultatiReali", "OFFICIAL_ADMIN", d)
+                    st.session_state[f"adm_h_{i}"] = c1.number_input(f"{m['h']}", 0, 9, key=f"ah_{i}")
+                    st.session_state[f"adm_a_{i}"] = c2.number_input(f"{m['a']}", 0, 9, key=f"aa_{i}")
 
     # --- TAB INVIO ---
     with tabs[3]:
-        if st.button("🚀 INVIA PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            gironi = {f"M_{i}": [st.session_state.get(f"h_{i}",0), st.session_state.get(f"a_{i}",0)] for i in range(72)}
-            if salva_su_google("Pronostici", user_nick, {"gironi": gironi, "campione": st.session_state.get("campione")}):
-                st.balloons(); st.success("Inviato con successo!")
+        st.write("### 🚀 Pronti per l'invio?")
+        if st.button("SALVA PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+            payload = {
+                "Gironi": {f"M_{i}": [st.session_state.get(f"h_{i}"), st.session_state.get(f"a_{i}")] for i in range(72)},
+                "Vincitore": st.session_state.get("campione")
+            }
+            if salva_dati_google("Pronostici", user_nick, payload):
+                st.balloons()
+                st.success("Tutto salvato! In bocca al lupo!")
