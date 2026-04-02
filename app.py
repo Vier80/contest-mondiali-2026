@@ -35,7 +35,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. INIZIALIZZAZIONE MEMORIA (ANTI-CRASH) ---
-# Questo blocco previene l'errore "KeyError: adm_h_0" inizializzando tutto subito
 if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
@@ -46,7 +45,7 @@ if "initialized" not in st.session_state:
     st.session_state["adm_vincitore"] = "TBD"
     st.session_state["initialized"] = True
 
-# --- 3. RANKING E DATI ---
+# --- 3. RANKING E DATI (ESATTI DA PDF) ---
 RANKING = {
     "Spagna": 1, "Argentina": 2, "Francia": 3, "Inghilterra": 4, "Brasile": 5, "Portogallo": 6, "Olanda": 7, "Belgio": 8,
     "Germania": 9, "Croazia": 10, "Marocco": 11, "Colombia": 13, "Italia": 13, "USA": 14, "Messico": 15, "Uruguay": 16,
@@ -77,13 +76,19 @@ def get_flag(t):
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
 # --- 4. CONNESSIONE GOOGLE SHEETS ---
+def get_service_email():
+    try:
+        conf = json.loads(st.secrets["service_account"])
+        return conf.get('client_email', 'Errore nei Secrets')
+    except: return "Errore nei Secrets"
+
 def invia_google_sheets(tab_name, nick, dati):
     try:
         conf = json.loads(st.secrets["service_account"])
         creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         gc = gspread.authorize(creds)
         
-        # INSERISCI QUI IL TUO LINK
+        # INSERISCI QUI IL TUO LINK GOOGLE SHEETS
         URL_FOGLIO = "https://docs.google.com/spreadsheets/d/1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8/edit?gid=0#gid=0" 
         
         sheet_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', URL_FOGLIO)
@@ -96,8 +101,9 @@ def invia_google_sheets(tab_name, nick, dati):
         ws.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
-        st.error(f"❌ ERRORE GOOGLE SHEETS: Assicurati di aver condiviso il foglio come EDITOR con questa email:")
-        st.code(conf.get('client_email', ''), language=None)
+        st.error(f"❌ ERRORE 403: Google non ti fa accedere al file!")
+        st.markdown(f"Devi condividere il tuo Foglio Google (con permessi di EDITOR) con questa email:")
+        st.code(get_service_email(), language=None)
         return False
 
 # --- 5. CALCOLI CLASSIFICHE ---
@@ -159,8 +165,12 @@ if user:
                 idx = r * 4 + c
                 if idx < 72:
                     m = MATCHES[idx]
-                    p1, p2 = RANKING[m['a']], RANKING[m['h']] # Vittoria casa dà punti dell'ospite e viceversa
-                    px = (p1 + p2) // 2
+                    
+                    # LOGICA PUNTI ESATTA
+                    p1 = RANKING[m['h']] # Segno 1 = Vittoria in casa = Punti Ranking Casa
+                    p2 = RANKING[m['a']] # Segno 2 = Vittoria fuori = Punti Ranking Ospite
+                    px = (p1 + p2) // 2  # Segno X = Pareggio = Somma diviso 2
+
                     with cols[c]:
                         with st.container(border=True):
                             st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}</span><span class='pts-badge'>X: {px}</span><span class='pts-badge'>2: {p2}</span></div>", unsafe_allow_html=True)
@@ -168,7 +178,6 @@ if user:
                             
                             c1, in1, vs, in2, c2 = st.columns([1, 1.2, 0.3, 1.2, 1])
                             c1.image(get_flag(m['h']), width=35)
-                            # Nota: rimosso 'value' per legarlo dinamicamente allo state key
                             in1.number_input("H", min_value=0, max_value=9, key=f"h_{idx}", label_visibility="collapsed")
                             vs.markdown("<p style='text-align:center; padding-top:10px; font-weight:900;'>-</p>", unsafe_allow_html=True)
                             in2.number_input("A", min_value=0, max_value=9, key=f"a_{idx}", label_visibility="collapsed")
@@ -243,12 +252,19 @@ if user:
             if win not in ["In attesa...", "Altra Semi", "Finalista 2"] and prefisso=="": st.balloons()
 
     with tabs[2]:
+        if st.button("🪄 Autocompila Bracket (Test Grafico)"):
+            all_teams = list(RANKING.keys())
+            for k in ["S1","S2","O1","SEM1","WINNER"]: st.session_state[k] = random.choice(all_teams)
+            st.rerun()
         render_wimbledon(prefisso="")
 
-    # --- ADMIN AREA COMPLETA ---
+    # --- ADMIN AREA ---
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
+            st.error("⚠️ IMPORTANTE: Se l'invio fallisce, copia questa email e aggiungila come Editor nel tuo file Google Sheets:")
+            st.code(get_service_email(), language=None)
+            
             adm_tabs = st.tabs(["1. Classifica Ranking", "2. Risultati Reali", "3. Bracket Reale"])
             
             with adm_tabs[0]:
