@@ -98,7 +98,7 @@ def invia_google_sheets(tab_name, nick, dati):
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
         try: ws = sh.worksheet(tab_name)
-        except: ws = sh.add_worksheet(title=tab_name, rows="100", cols="5")
+        except: ws = sh.add_worksheet(title=tab_name, rows="1", cols="5")
         ws.append_row([nick, json.dumps(dati)])
         return True
     except Exception as e:
@@ -120,15 +120,24 @@ def get_admin_dashboard_data():
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
-            if dati_reali:
-                last_real_json = json.loads(dati_reali[-1][1])
-                reali_dict = last_real_json.get("Gironi", {})
+            # Lettura a ritroso infallibile per saltare righe vuote
+            for row in reversed(dati_reali):
+                if len(row) >= 2 and "{" in row[1]:
+                    try:
+                        last_real_json = json.loads(row[1])
+                        if "Gironi" in last_real_json:
+                            reali_dict = last_real_json["Gironi"]
+                            break
+                    except:
+                        pass
 
         classifica = []
         nomi_utenti = []
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
+            if "{" not in row[1]: continue
+            
             nick = row[0]
             nomi_utenti.append((nick, idx + 1))
             try: user_data = json.loads(row[1])
@@ -138,7 +147,7 @@ def get_admin_dashboard_data():
             punti_tot = 0
             punti_bonus = 0
             
-            # NUOVO MOTORE DI LETTURA PUNTI (A prova di nomi con spazi)
+            # Algoritmo calcolo infallibile
             for i, m in enumerate(MATCHES):
                 match_key = f"G_{m['gr']} {m['h']}-{m['a']}"
                 if match_key in user_gironi and match_key in reali_dict:
@@ -168,7 +177,6 @@ def get_admin_dashboard_data():
             
         df = pd.DataFrame(classifica)
         if not df.empty:
-            df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by="Punti Totali", ascending=False).reset_index(drop=True)
             df.index += 1
         return df, nomi_utenti, ws_pro
@@ -176,9 +184,15 @@ def get_admin_dashboard_data():
         return pd.DataFrame(), [], None
 
 def elimina_utente(ws, row_index):
+    # Comando universale a prova di aggiornamento gspread
     try:
-        ws.delete_row(row_index)
+        ws.delete_rows(row_index)
         return True
+    except AttributeError:
+        try:
+            ws.delete_row(row_index)
+            return True
+        except: return False
     except: return False
 
 # --- 5. CALCOLI CLASSIFICHE GIRONI (UI) ---
@@ -206,7 +220,6 @@ def calcola_classifiche(prefisso=""):
     return rankings_finali, list_terze, stats
 
 # --- 6. INTERFACCIA ---
-# Title and Discreet Admin Login
 c_title, c_login = st.columns([9, 1])
 with c_title:
     st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:10px; padding-left:10%;'>🏆 World Cup 2026 Contest</h1>", unsafe_allow_html=True)
@@ -363,7 +376,7 @@ if user:
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti & Gestione", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
@@ -392,14 +405,17 @@ if user:
                     
                     st.divider()
                     st.write("#### Gestione Utenti")
-                    col_del1, col_del2 = st.columns([2, 1])
-                    with col_del1:
-                        utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: x[0])
-                    with col_del2:
-                        st.write("<br>", unsafe_allow_html=True)
-                        if st.button("🗑️ Elimina", type="primary"):
-                            if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
-                                st.success(f"{utente_da_eliminare[0]} eliminato! Ricarica la pagina.")
+                    if nomi_utenti:
+                        col_del1, col_del2 = st.columns([2, 1])
+                        with col_del1:
+                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga {x[1]})")
+                        with col_del2:
+                            st.write("<br>", unsafe_allow_html=True)
+                            if st.button("🗑️ Elimina", type="primary"):
+                                if elimina_utente(ws_pronostici, utente_da_eliminare[1]):
+                                    st.success(f"{utente_da_eliminare[0]} eliminato! Clicca di nuovo sul Tab 'Ranking' per ricaricare.")
+                                else:
+                                    st.error("Errore di comunicazione con Google Sheets durante l'eliminazione.")
                 else:
                     st.info("Nessun dato o classifica ancora disponibile. Attendi che i partecipanti salvino i pronostici.")
 
@@ -412,6 +428,7 @@ if user:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
+                # Layout Compatto Risultati Reali
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
