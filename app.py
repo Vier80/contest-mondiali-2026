@@ -5,16 +5,21 @@ import gspread
 import random
 import time
 import urllib.parse
+import base64
 from google.oauth2.service_account import Credentials
+try:
+    from fpdf import FPDF
+    HAS_FPDF = True
+except ImportError:
+    HAS_FPDF = False
 
-# --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026 NERO E LIME/CYAN) ---
+# --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
 st.set_page_config(page_title="FIFA World Cup Contest 2026", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
     
-    /* Global Styles: Tema Scuro FIFA 2026 NERO PURO */
     .stApp { background-color: #000000; color: #f8fafc; font-family: 'Inter', sans-serif; }
     
     .hero-header { text-align: center; padding: 1rem 0 1rem 0; }
@@ -28,7 +33,6 @@ st.markdown("""
     button[data-baseweb="tab"] p { font-size: 16px !important; font-weight: 700 !important; color: #94a3b8 !important; }
     button[data-baseweb="tab"][aria-selected="true"] p { color: #00ff87 !important; }
 
-    /* Match Containers: Molto Scuro con Bordo Neutro */
     .stElementContainer div[data-testid="stVerticalBlockBorderControl"] {
         background-color: #1a1a1a !important; border: 1px solid #444444 !important; 
         border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5) !important;
@@ -38,7 +42,6 @@ st.markdown("""
         border-color: #60efff !important; box-shadow: 0 0 15px rgba(96, 239, 255, 0.4) !important;
     }
     
-    /* Inputs: Scuro con focus lime */
     input[type="number"], input[type="text"] {
         background-color: #2a2a2a !important; color: #ffffff !important;
         font-size: 20px !important; font-weight: 800 !important; border: 1px solid #444444 !important;
@@ -55,7 +58,6 @@ st.markdown("""
     .admin-match-box { background: #1a1a1a; border: 1px solid #444444; border-radius: 8px; padding: 10px; margin-bottom: 12px; color: white;}
     .admin-match-title { font-size: 13px; font-weight: 800; text-align: center; color: #e2e8f0; margin-bottom: 8px; }
     
-    /* Premium Bracket Styling */
     div.stButton > button {
         border-radius: 8px; font-weight: 700; border: 1px solid #444444;
         background-color: #2a2a2a; color: #ffffff; margin-bottom: 0px !important;
@@ -72,17 +74,9 @@ st.markdown("""
         text-align: center; display: inline-block; border: 1px solid #00ff87; margin-bottom: 10px;
     }
 
-    /* ALLINEAMENTO MATEMATICO DEL BRACKET VIA CSS FLEXBOX */
-    div[data-testid="stHorizontalBlock"]:has(.bracket-round-title) {
-        align-items: stretch !important;
-    }
-    div[data-testid="column"]:has(.bracket-round-title) {
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: space-around !important;
-    }
+    div[data-testid="stHorizontalBlock"]:has(.bracket-round-title) { align-items: stretch !important; }
+    div[data-testid="column"]:has(.bracket-round-title) { display: flex !important; flex-direction: column !important; justify-content: space-around !important; }
     
-    /* Mobile Optimization */
     @media (max-width: 768px) {
         .hero-title { font-size: 2.2rem !important; }
         .hero-subtitle { font-size: 1rem !important; }
@@ -180,9 +174,9 @@ def salva_dettaglio_punti_sheets(dettagli_list):
             try: ws.update(range_name="A1", values=dati_matrice)
             except Exception as e2:
                 try: ws.update([dati_matrice])
-                except Exception as e3: return f"API Gspread bloccata. Errori: {e1} - {e2}"
+                except Exception as e3: return f"API Gspread bloccata."
         return "OK"
-    except Exception as e: return f"Errore Connessione Foglio Dettaglio: {str(e)}"
+    except Exception as e: return f"Errore: {str(e)}"
 
 def safe_json_parse(val):
     try: return json.loads(val)
@@ -218,7 +212,35 @@ def carica_dati_paracadute():
                     break
     except Exception: pass
 
-# --- CALCOLO CLASSIFICA E DETTAGLIO PUNTI AGGIORNATO ---
+def get_32_qualifiers(gironi_dict):
+    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
+    for i, m in enumerate(MATCHES):
+        key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+        key_num = str(i)
+        vals = gironi_dict.get(key_str, gironi_dict.get(key_num))
+        if isinstance(vals, list) and len(vals) >= 2:
+            h = force_int(vals[0]); a = force_int(vals[1])
+            if h is not None and a is not None:
+                stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
+                stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
+                if h > a: stats[m['gr']][m['h']]["Pt"] += 3
+                elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
+                else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
+
+    rankings_finali = {}
+    terze_squadre = []
+    for g, ts in stats.items():
+        df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
+        rankings_finali[g] = df.index.tolist()
+        terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"]})
+    migliori_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR"], ascending=False).head(8)["Squadra"].tolist()
+    
+    top_32 = []
+    for g in rankings_finali: top_32.extend(rankings_finali[g][:2])
+    top_32.extend(migliori_terze)
+    return top_32
+
+# --- CALCOLO CLASSIFICA CON LOGICA PUNTI ESATTA ---
 @st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
@@ -246,6 +268,16 @@ def get_admin_dashboard_data():
                         elif any(k.startswith("G_") or str(k).isdigit() for k in data.keys()): 
                             reali_dict = data
                         break
+
+        # SQUADRE QUALIFICATE REALI
+        adm_32 = get_32_qualifiers(reali_dict) if reali_dict else []
+        adm_16 = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("S") and reali_bracket.get(k) not in ["TBD", "In attesa...", None]]
+        adm_8  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("O") and reali_bracket.get(k) not in ["TBD", "In attesa...", None]]
+        adm_4  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("Q") and reali_bracket.get(k) not in ["TBD", "In attesa...", None]]
+        adm_2  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("SEM") and reali_bracket.get(k) not in ["TBD", "In attesa...", None]]
+        adm_win = reali_bracket.get("WINNER") if reali_bracket.get("WINNER") not in ["TBD", "In attesa...", None] else ""
+        adm_fin = [t for t in adm_2 if t != adm_win]
+        adm_fin = adm_fin[0] if adm_fin else ""
 
         classifica = []
         nomi_utenti = []
@@ -284,7 +316,6 @@ def get_admin_dashboard_data():
                             
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
-                        
                         p1 = RANKING.get(m['h'], 0); p2 = RANKING.get(m['a'], 0); px = (p1 + p2) // 2
                         
                         if u_esito == r_esito:
@@ -299,20 +330,35 @@ def get_admin_dashboard_data():
                 punti_tot += pt_match
                 dettaglio_utente[key_str] = pt_match
             
-            # Punti del Bracket (Aggiunti per armonizzare la logica come richiesto)
-            for k in BRACKET_KEYS:
-                r_val = reali_bracket.get(k, "TBD")
-                u_val = user_bracket.get(k, "TBD")
-                pt_b = 0
-                if r_val != "TBD" and r_val != "In attesa..." and u_val == r_val:
-                    if k.startswith("S"): pt_b = 10
-                    elif k.startswith("O"): pt_b = 20
-                    elif k.startswith("Q"): pt_b = 30
-                    elif k.startswith("SEM"): pt_b = 40
-                    elif k == "WINNER": pt_b = 50
-                punti_tot += pt_b
-                dettaglio_utente[f"Bracket_{k}"] = pt_b
-                
+            # Punti del Bracket
+            usr_32 = get_32_qualifiers(user_gironi) if user_gironi else []
+            usr_16 = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("S") and user_bracket.get(k) not in ["TBD", "In attesa...", None]]
+            usr_8  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("O") and user_bracket.get(k) not in ["TBD", "In attesa...", None]]
+            usr_4  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("Q") and user_bracket.get(k) not in ["TBD", "In attesa...", None]]
+            usr_2  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("SEM") and user_bracket.get(k) not in ["TBD", "In attesa...", None]]
+            usr_win = user_bracket.get("WINNER") if user_bracket.get("WINNER") not in ["TBD", "In attesa...", None] else ""
+            usr_fin = [t for t in usr_2 if t != usr_win]
+            usr_fin = usr_fin[0] if usr_fin else ""
+
+            # INTERSEZIONE INSIEMI PER ASSEGNAZIONE ESATTA PUNTI
+            pt_32 = len(set(usr_32) & set(adm_32)) * 25
+            pt_16 = len(set(usr_16) & set(adm_16)) * 35
+            pt_8 = len(set(usr_8) & set(adm_8)) * 50
+            pt_4 = len(set(usr_4) & set(adm_4)) * 80
+            pt_2 = len(set(usr_2) & set(adm_2)) * 120
+            pt_finalista = 180 if usr_fin and adm_fin and usr_fin == adm_fin else 0
+            pt_vincitore = 250 if usr_win and adm_win and usr_win == adm_win else 0
+
+            punti_tot += pt_32 + pt_16 + pt_8 + pt_4 + pt_2 + pt_finalista + pt_vincitore
+            
+            dettaglio_utente["PT_Sedicesimi_(32)"] = pt_32
+            dettaglio_utente["PT_Ottavi_(16)"] = pt_16
+            dettaglio_utente["PT_Quarti_(8)"] = pt_8
+            dettaglio_utente["PT_Semi_(4)"] = pt_4
+            dettaglio_utente["PT_Finali_(2)"] = pt_2
+            dettaglio_utente["PT_Finalista_Perdente"] = pt_finalista
+            dettaglio_utente["PT_Vincitore"] = pt_vincitore
+            
             dettaglio_utente["Punti Totali"] = punti_tot
             dettaglio_utente["Punti Bonus"] = punti_bonus
             dettagli_list.append(dettaglio_utente)
@@ -334,7 +380,7 @@ def elimina_utente(ws, row_index):
         except: return False
     return True
 
-# --- 5. CALCOLI CLASSIFICHE GIRONI (UI) ---
+# --- 5. CALCOLI CLASSIFICHE GIRONI E TERZE SQUADRE ---
 def calcola_classifiche(prefisso=""):
     stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
@@ -353,9 +399,49 @@ def calcola_classifiche(prefisso=""):
     for g, ts in stats.items():
         df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
         rankings_finali[g] = df.index.tolist()
-        terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "Gruppo": g})
-    migliori_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR"], ascending=False).head(8)
-    return rankings_finali, migliori_terze["Squadra"].tolist(), stats
+        terze_squadre.append({"Squadra": df.index[2], "Girone": g, "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
+    
+    # Crea la tabella di tutte le terze e le ordina
+    terze_squadre_df = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
+    terze_squadre_df.index += 1
+    
+    migliori_terze = terze_squadre_df.head(8)["Squadra"].tolist()
+    return rankings_finali, migliori_terze, stats, terze_squadre_df
+
+# --- CREAZIONE PDF ---
+def genera_pdf_b64(user, gironi_data, bracket_data):
+    if not HAS_FPDF: return None
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt=f"Pronostici Ufficiali - WC 2026 Contest", ln=True, align='C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt=f"Partecipante: {user}", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, txt="FASE A GIRONI", ln=True, align='L')
+    pdf.set_font("Arial", size=10)
+    
+    for i, m in enumerate(MATCHES):
+        key = f"G_{m['gr']} {m['h']}-{m['a']}"
+        h_score, a_score = gironi_data.get(key, ["-", "-"])
+        pdf.cell(200, 6, txt=f"Girone {m['gr']}: {m['h']} {h_score} - {a_score} {m['a']}", ln=True)
+        
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, txt="FASE A ELIMINAZIONE DIRETTA", ln=True, align='L')
+    pdf.set_font("Arial", size=10)
+    
+    for k in BRACKET_KEYS:
+        val = bracket_data.get(k, "TBD")
+        pdf.cell(200, 6, txt=f"Vincitore {k}: {val}", ln=True)
+        
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    return base64.b64encode(pdf_bytes).decode()
+
 
 # --- 6. INTERFACCIA MAIN ---
 
@@ -424,7 +510,7 @@ if user or is_admin:
 
     # --- TAB CLASSIFICHE ---
     with tabs[1]:
-        r_usr, t3_usr, stats_usr = calcola_classifiche(prefisso="")
+        r_usr, t3_usr, stats_usr, df_terze = calcola_classifiche(prefisso="")
         for i in range(0, 12, 3):
             cs = st.columns(3)
             for k in range(3):
@@ -432,10 +518,17 @@ if user or is_admin:
                 df = pd.DataFrame(stats_usr[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
                 cs[k].markdown(f"<h4 style='color:#60efff;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
+                
+        st.divider()
+        st.markdown("<h3 style='text-align:center; color:#00ff87;'>Classifica 3° Classificate</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center; color:#cbd5e1;'>Solo le prime 8 accedono alla fase ad eliminazione diretta.</p>", unsafe_allow_html=True)
+        col_t1, col_t2, col_t3 = st.columns([1, 2, 1])
+        with col_t2:
+            st.dataframe(df_terze.style.apply(lambda x: ['background: #064e3b; color: white' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
 
     # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA E COMPATTA ---
     def render_wimbledon(prefisso=""):
-        ranks, terze_list, _ = calcola_classifiche(prefisso)
+        ranks, terze_list, _, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
             try: return ranks[g][pos]
             except: return "TBD"
@@ -453,12 +546,6 @@ if user or is_admin:
 
         st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
-        
-        # Con la nuova compattazione CSS, un blocco misura approssimativamente 110px totali.
-        H = 110 
-        def space(multiplier):
-            pixels = int(multiplier * H)
-            if pixels > 0: st.markdown(f"<div style='height:{pixels}px; margin:0; padding:0; line-height:0;'></div>", unsafe_allow_html=True)
 
         with c_sed:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
@@ -473,56 +560,59 @@ if user or is_admin:
             
         with c_ott:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(0.5); o1 = t_box(s1, s2, "O1")
-            space(1.0); o2 = t_box(s3, s4, "O2")
-            space(1.0); o3 = t_box(s5, s6, "O3")
-            space(1.0); o4 = t_box(s7, s8, "O4")
-            space(1.0); o5 = t_box(s9, s10, "O5")
-            space(1.0); o6 = t_box(s11, s12, "O6")
-            space(1.0); o7 = t_box(s13, s14, "O7")
-            space(1.0); o8 = t_box(s15, s16, "O8")
+            o1 = t_box(s1, s2, "O1"); o2 = t_box(s3, s4, "O2")
+            o3 = t_box(s5, s6, "O3"); o4 = t_box(s7, s8, "O4")
+            o5 = t_box(s9, s10, "O5"); o6 = t_box(s11, s12, "O6")
+            o7 = t_box(s13, s14, "O7"); o8 = t_box(s15, s16, "O8")
 
         with c_qua:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(1.5); q1 = t_box(o1, o2, "Q1")
-            space(3.0); q2 = t_box(o3, o4, "Q2")
-            space(3.0); q3 = t_box(o5, o6, "Q3")
-            space(3.0); q4 = t_box(o7, o8, "Q4")
+            q1 = t_box(o1, o2, "Q1"); q2 = t_box(o3, o4, "Q2")
+            q3 = t_box(o5, o6, "Q3"); q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(3.5); sem1 = t_box(q1, q2, "SEM1")
-            space(7.0); sem2 = t_box(q3, q4, "SEM2")
+            sem1 = t_box(q1, q2, "SEM1"); sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(7.5); vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"; win = t_box(sem1, sem2, "WINNER")
+            vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"; win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
 
     with tabs[2]:
         render_wimbledon(prefisso="")
 
-    # --- INVIO UTENTE ---
+    # --- INVIO UTENTE E PDF ---
     if user:
         with tabs[3]:
             st.write("### 🚀 Manda i Pronostici Ufficiali")
             if st.session_state.get("user_saved_success"): st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!"); st.session_state["user_saved_success"] = False
-            if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-                payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
-                payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
-                if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
-                    st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
+            
+            c_snd, c_pdf = st.columns(2)
+            with c_snd:
+                if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+                    payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+                    payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
+                    if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
+                        st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
+            
+            with c_pdf:
+                if HAS_FPDF:
+                    payload_user_tmp = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+                    payload_bracket_tmp = {k: st.session_state[k] for k in BRACKET_KEYS}
+                    pdf_b64 = genera_pdf_b64(user, payload_user_tmp, payload_bracket_tmp)
+                    if pdf_b64:
+                        href = f'<a href="data:application/pdf;base64,{pdf_b64}" download="Pronostici_WC2026_{user}.pdf" style="text-decoration: none;"><div style="background-color: #2a2a2a; border: 1px solid #444444; color: #ffffff; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; cursor: pointer;">📄 Scarica le tue scelte in PDF</div></a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                else:
+                    st.info("⚠️ Crea un file 'requirements.txt' con la scritta 'fpdf' per abilitare il download PDF.")
 
     # --- ADMIN AREA ---
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            if st.session_state.get("admin_saved_success"): 
-                st.success("✅ Risultati e Tabellone salvati con successo!")
-            
-            if st.session_state.get("admin_dettagli_errore"):
-                st.error(f"❌ La classifica è aggiornata, MA il Dettaglio Punti ha fallito: {st.session_state['admin_dettagli_errore']}")
-                st.session_state["admin_dettagli_errore"] = None
+            if st.session_state.get("admin_saved_success"): st.success("✅ Risultati e Tabellone salvati con successo!")
+            if st.session_state.get("admin_dettagli_errore"): st.error(f"❌ Errore Dettaglio Punti: {st.session_state['admin_dettagli_errore']}"); st.session_state["admin_dettagli_errore"] = None
 
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale", "🗑️ Reset Dati"])
             
@@ -565,35 +655,22 @@ if user or is_admin:
                 st.error("QUESTA AZIONE È IRREVERSIBILE! Cancellerà tutti i risultati reali inseriti (Gironi e Bracket) su Google Sheets.")
                 st.warning("Dopo il reset, l'app si ricaricherà e tutti i campi di inserimento per l'admin appariranno vuoti o con 'TBD'.")
                 if st.button("CANCELLA DEFINITIVAMENTE TUTTI I DATI REALI", type="primary", use_container_width=True):
-                    # Cancella dati su Sheets inviando dizionari vuoti
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": {}, "Bracket": {}}):
-                        # Cancella cache per forzare ricalcolo classifica vuota
                         get_admin_dashboard_data.clear()
-                        # La logica standard all'avvio caricherà dati vuoti da sheets e imposterà gli stati a None o TBD
                         st.success("✅ Dati reali cancellati su Google Sheets. Ricaricamento dell'app per azzerare la memoria locale...")
-                        # Un piccolo ritardo per mostrare il messaggio
                         time.sleep(1.5)
-                        # Forza ricaricamento dell'intera app
                         st.rerun()
                 
             st.divider()
-            # Mostra il tasto Salva solo se non siamo nel tab Reset
             if st.button("💾 SALVA TUTTO E AGGIORNA CLASSIFICA", type="primary", use_container_width=True):
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
                 payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in BRACKET_KEYS]}
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
-                    
-                    # Obbliga il sistema a svuotare la cache e preparare i nuovi dati
                     get_admin_dashboard_data.clear() 
                     _, _, _, dettagli_list_gs = get_admin_dashboard_data()
-                    
-                    # Salva il file dettagliato e cattura l'eventuale errore
                     esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
-                    
                     st.session_state["admin_saved_success"] = True
-                    if esito_dettagli != "OK":
-                        st.session_state["admin_dettagli_errore"] = esito_dettagli
-                        
+                    if esito_dettagli != "OK": st.session_state["admin_dettagli_errore"] = esito_dettagli
                     time.sleep(1) 
                     st.rerun()
