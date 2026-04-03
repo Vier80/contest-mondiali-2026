@@ -53,7 +53,7 @@ st.markdown("""
     input[type="password"] { font-size: 14px !important; height: 35px !important; }
     
     .pts-badge { background: #2a2a2a; color: #60efff; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #444444; margin: 0 3px; }
-    .bonus-txt { color: #00ff87; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 8px; }
+    .bonus-txt { color: #00ff87; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 8px; margin-bottom: 8px; }
     
     .admin-match-box { background: #1a1a1a; border: 1px solid #444444; border-radius: 8px; padding: 10px; margin-bottom: 12px; color: white;}
     .admin-match-title { font-size: 13px; font-weight: 800; text-align: center; color: #e2e8f0; margin-bottom: 8px; }
@@ -499,14 +499,14 @@ if user or is_admin:
                     with cols[c]:
                         with st.container(border=True):
                             st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}pt</span><span class='pts-badge'>X: {px}pt</span><span class='pts-badge'>2: {p2}pt</span></div>", unsafe_allow_html=True)
-                            st.markdown("<span class='bonus-txt'>🎯 +50 pt Risultato Esatto</span>", unsafe_allow_html=True)
-                            c1, in1, vs, in2, c2 = st.columns([1, 1.2, 0.3, 1.2, 1])
-                            c1.image(get_flag(m['h']), width=30)
+                            st.markdown("<span class='bonus-txt'>🎯 +50 pt Risultato Esatto</span><br>", unsafe_allow_html=True)
+                            
+                            c1, in1, vs, in2, c2 = st.columns([1.3, 1.1, 0.2, 1.1, 1.3])
+                            c1.markdown(f"<div style='text-align:center; margin-top: 2px;'><img src='{get_flag(m['h'])}' width='48' style='border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);'><br><span style='font-size:10.5px; font-weight:800; color:#e2e8f0; display:block; margin-top:4px; line-height:1.1;'>{m['h']}</span></div>", unsafe_allow_html=True)
                             in1.number_input("H", min_value=0, max_value=9, key=f"h_{idx}", label_visibility="collapsed")
                             vs.markdown("<p style='text-align:center; padding-top:6px; font-weight:900; color:#cbd5e1;'>-</p>", unsafe_allow_html=True)
                             in2.number_input("A", min_value=0, max_value=9, key=f"a_{idx}", label_visibility="collapsed")
-                            c2.image(get_flag(m['a']), width=30)
-                            st.markdown(f"<p style='text-align:center; font-size:13px; font-weight:700; margin-top:8px; color:#e2e8f0;'>{m['h']} v {m['a']}</p>", unsafe_allow_html=True)
+                            c2.markdown(f"<div style='text-align:center; margin-top: 2px;'><img src='{get_flag(m['a'])}' width='48' style='border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);'><br><span style='font-size:10.5px; font-weight:800; color:#e2e8f0; display:block; margin-top:4px; line-height:1.1;'>{m['a']}</span></div>", unsafe_allow_html=True)
 
     # --- TAB CLASSIFICHE ---
     with tabs[1]:
@@ -524,7 +524,6 @@ if user or is_admin:
         st.markdown("<p style='text-align:center; color:#cbd5e1;'>Solo le prime 8 accedono alla fase ad eliminazione diretta.</p>", unsafe_allow_html=True)
         col_t1, col_t2, col_t3 = st.columns([1, 2, 1])
         with col_t2:
-            # Corretto background-color per essere letto correttamente da Streamlit
             st.dataframe(df_terze.style.apply(lambda x: ['background-color: #064e3b; color: #ffffff;' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
 
     # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA E COMPATTA ---
