@@ -412,9 +412,9 @@ if is_admin and not st.session_state.get("paracadute_attivato"):
     st.session_state["paracadute_attivato"] = True
 
 # PER INSERIRE IL LOGO: Rimuovi i '#' dalle righe qui sotto e carica un file 'logo.png' 
-# col_img1, col_img2, col_img3 = st.columns([2, 1, 2])
-# with col_img2:
-#     st.image("logo.png", use_container_width=True)
+ col_img1, col_img2, col_img3 = st.columns([2, 1, 2])
+ with col_img2:
+    st.image("logo.png", use_container_width=True)
 
 st.markdown("""
 <div class='hero-header'>
