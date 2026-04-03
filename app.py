@@ -46,7 +46,6 @@ st.markdown("""
     .admin-match-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
     .admin-match-title { font-size: 13px; font-weight: 800; text-align: center; color: #475569; margin-bottom: 8px; }
     
-    /* Premium Bracket Styling */
     div.stButton > button {
         border-radius: 8px; font-weight: 700; border: 1px solid #e2e8f0;
         background-color: #f8fafc; color: #475569; margin-bottom: 0px !important;
@@ -65,8 +64,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIN ADMIN CORTISSIMO ED ALLINEATO A DESTRA (Tramite layout nativo) ---
-# Usiamo una griglia 11:1 in cima alla pagina per forzare la barra ad essere minuscola.
+# --- LOGIN ADMIN CORTISSIMO ED ALLINEATO A DESTRA ---
 col_spacer, col_admin = st.columns([11, 1])
 with col_admin:
     admin_pw = st.text_input("Admin Login", type="password", key="admin_auth", label_visibility="collapsed", placeholder="🔒")
@@ -135,6 +133,39 @@ def invia_google_sheets(tab_name, nick, dati):
         return True
     except Exception: return False
 
+# FUNZIONE RISCRITTA E BLINDATA PER SALVATAGGIO DETTAGLIO PUNTI
+def salva_dettaglio_punti_sheets(dettagli_list):
+    if not dettagli_list: 
+        return "Nessun dato da salvare (Lista vuota)."
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
+        try: 
+            ws = sh.worksheet("DettaglioPunti")
+        except: 
+            ws = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
+        
+        # Converte i dati in una struttura pulita e sicura
+        df_det = pd.DataFrame(dettagli_list).fillna(0)
+        # Forza la conversione in stringa pura per tutte le celle
+        dati_matrice = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
+        ws.clear()
+        
+        # Fallback triplo per supportare qualsiasi versione dell'API di Google
+        try:
+            ws.update("A1", dati_matrice)
+        except Exception as e1:
+            try:
+                ws.update(range_name="A1", values=dati_matrice)
+            except Exception as e2:
+                try:
+                    ws.update([dati_matrice])
+                except Exception as e3:
+                    return f"API Gspread bloccata. Errori: 1({e1}) - 2({e2})"
+        return "OK"
+    except Exception as e: 
+        return f"Errore Connessione Foglio Dettaglio: {str(e)}"
+
 def safe_json_parse(val):
     try: return json.loads(val)
     except: return {}
@@ -169,7 +200,7 @@ def carica_dati_paracadute():
                     break
     except Exception: pass
 
-# --- CALCOLO CLASSIFICA CON DETTAGLIO PUNTI ---
+# --- CALCOLO CLASSIFICA CON DETTAGLIO PUNTI (Match per Match) ---
 @st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
@@ -197,7 +228,7 @@ def get_admin_dashboard_data():
 
         classifica = []
         nomi_utenti = []
-        dettagli_list = [] # Memoria per il nuovo foglio dettagli
+        dettagli_list = [] 
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
@@ -211,6 +242,7 @@ def get_admin_dashboard_data():
             if not isinstance(user_gironi, dict): continue
             
             punti_tot = 0; punti_bonus = 0
+            # Memorizza il nome per la riga
             dettaglio_utente = {"Partecipante": nick}
             
             for i, m in enumerate(MATCHES):
@@ -243,12 +275,13 @@ def get_admin_dashboard_data():
                             punti_bonus += 50
                             
                 punti_tot += pt_match
-                # Salviamo il punteggio vinto nella singola partita
+                # Salviamo il punteggio specifico della partita nella singola colonna di Sheets
                 dettaglio_utente[key_str] = pt_match
                 
             dettaglio_utente["Punti Totali"] = punti_tot
             dettaglio_utente["Punti Bonus"] = punti_bonus
             dettagli_list.append(dettaglio_utente)
+            
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
         df = pd.DataFrame(classifica)
@@ -361,7 +394,7 @@ if user or is_admin:
                 cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA ---
+    # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA PERFETTA ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
@@ -382,11 +415,12 @@ if user or is_admin:
         st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo SPAZIALE: l'altezza esatta di un box Streamlit è di circa 130px.
-        H = 130 
+        # L'altezza di un box standard di Streamlit più i suoi margini è pari a ~128 pixel
+        # L'algoritmo calcola l'ingombro geometrico esatto.
+        H = 128 
         def space(multiplier):
             pixels = int(multiplier * H)
-            if pixels > 0: st.markdown(f"<div style='height:{pixels}px; min-height:{pixels}px;'></div>", unsafe_allow_html=True)
+            if pixels > 0: st.markdown(f"<div style='height:{pixels}px; margin:0; padding:0; line-height:0;'></div>", unsafe_allow_html=True)
 
         with c_sed:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
@@ -445,7 +479,14 @@ if user or is_admin:
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            if st.session_state.get("admin_saved_success"): st.success("✅ Risultati, Tabellone e Dettaglio Punti aggiornati su Sheets!"); st.session_state["admin_saved_success"] = False
+            if st.session_state.get("admin_saved_success"): 
+                st.success("✅ Risultati e Tabellone salvati con successo!")
+            
+            # Se la variabile d'errore è piena, mostra il problema esatto in rosso:
+            if st.session_state.get("admin_dettagli_errore"):
+                st.error(f"❌ La classifica è aggiornata, MA il Dettaglio Punti ha fallito: {st.session_state['admin_dettagli_errore']}")
+                st.session_state["admin_dettagli_errore"] = None
+
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
@@ -488,20 +529,17 @@ if user or is_admin:
                 payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]}
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
-                    get_admin_dashboard_data.clear() # Obbliga il sistema a ricalcolare i dati freschi
+                    
+                    # Obbliga il sistema a svuotare la cache e preparare i nuovi dati
+                    get_admin_dashboard_data.clear() 
                     _, _, _, dettagli_list_gs = get_admin_dashboard_data()
                     
-                    # SCRITTURA ROBUSTA DEL FOGLIO DETTAGLI
-                    if dettagli_list_gs:
-                        gc = get_gspread_client()
-                        sh = gc.open_by_key(ID_DEL_FOGLIO)
-                        try: ws_det = sh.worksheet("DettaglioPunti")
-                        except: ws_det = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
-                        
-                        df_det = pd.DataFrame(dettagli_list_gs).fillna(0) # Riempie i vuoti in modo sicuro
-                        dati_matrice = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
-                        ws_det.clear()
-                        try: ws_det.update(values=dati_matrice, range_name="A1")
-                        except TypeError: ws_det.update("A1", dati_matrice) # Fallback per versioni vecchie
+                    # Salva il file dettagliato e cattura l'eventuale errore
+                    esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
                     
-                    st.session_state["admin_saved_success"] = True; time.sleep(1); st.rerun()
+                    st.session_state["admin_saved_success"] = True
+                    if esito_dettagli != "OK":
+                        st.session_state["admin_dettagli_errore"] = esito_dettagli
+                        
+                    time.sleep(1) 
+                    st.rerun()
