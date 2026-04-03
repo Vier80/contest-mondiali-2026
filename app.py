@@ -47,17 +47,17 @@ st.markdown("""
         border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
     }
     
-    /* Login Admin: INVISIBILE, CORTO E ALLINEATO A DESTRA */
-    .admin-login-wrapper { position: absolute; top: 10px; right: 10px; z-index: 999; display: flex; justify-content: flex-end; }
+    /* Login Admin: ALLINEATO IN ALTO A DESTRA, COMPATTO E DISCRETO */
+    .admin-login-wrapper { position: fixed; top: 15px; right: 15px; z-index: 9999; }
     .admin-login-wrapper input {
-        width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
+        width: 20px !important; height: 20px !important; opacity: 0; border: none !important;
         background: transparent !important; padding: 0 !important; cursor: default;
         transition: all 0.3s ease;
     }
     .admin-login-wrapper input:focus {
-        width: 90px !important; height: 32px !important; opacity: 1; cursor: text;
-        background: #ffffff !important; font-size: 12px !important; color: #475569 !important;
-        border: 1px solid #cbd5e1 !important; border-radius: 6px !important;
+        width: 100px !important; height: 32px !important; opacity: 1; cursor: text;
+        background: #ffffff !important; font-size: 13px !important; color: #475569 !important;
+        border: 1px solid #cbd5e1 !important; border-radius: 6px !important; outline: none !important;
     }
     
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
@@ -69,7 +69,7 @@ st.markdown("""
     /* Premium Bracket Styling */
     div.stButton > button {
         border-radius: 8px; font-weight: 700; border: 1px solid #e2e8f0;
-        background-color: #f8fafc; color: #475569; transition: all 0.2s ease;
+        background-color: #f8fafc; color: #475569; transition: all 0.2s ease; margin-bottom: 0px !important;
     }
     div.stButton > button:hover { border-color: #93c5fd; color: #2563eb; background-color: #eff6ff; }
     div.stButton > button[kind="primary"] {
@@ -133,7 +133,7 @@ def get_flag(t):
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE E LOGICA (OTTIMIZZATA PER VELOCITA') ---
+# --- 4. CONNESSIONE E LOGICA ---
 def get_gspread_client():
     conf = json.loads(st.secrets["service_account"])
     creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -154,6 +154,25 @@ def invia_google_sheets(tab_name, nick, dati):
         st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API.")
         return False
 
+# NUOVA FUNZIONE: Salva il dettaglio dei punti match per match
+def salva_dettaglio_punti_sheets(dettagli_list):
+    if not dettagli_list: return
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
+        try: ws = sh.worksheet("DettaglioPunti")
+        except: ws = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
+        
+        df_det = pd.DataFrame(dettagli_list)
+        dati_da_inserire = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
+        ws.clear()
+        try:
+            ws.update(range_name="A1", values=dati_da_inserire)
+        except:
+            ws.update("A1", dati_da_inserire)
+    except Exception:
+        pass
+
 def safe_json_parse(val):
     try: return json.loads(val)
     except: return {}
@@ -167,7 +186,6 @@ def force_int(val):
     except:
         return None
 
-# SISTEMA PARACADUTE: Auto-carica gli ultimi dati admin salvati per prevenire perdite
 def carica_dati_paracadute():
     try:
         gc = get_gspread_client()
@@ -180,20 +198,18 @@ def carica_dati_paracadute():
                 if isinstance(data, dict):
                     gironi_data = data.get("Gironi", data)
                     bracket_data = data.get("Bracket", {})
-                    # Ripristina Gironi
                     for i, m in enumerate(MATCHES):
                         key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                         if key_str in gironi_data:
                             st.session_state[f"adm_h_{i}"] = force_int(gironi_data[key_str][0])
                             st.session_state[f"adm_a_{i}"] = force_int(gironi_data[key_str][1])
-                    # Ripristina Bracket
                     for k, v in bracket_data.items():
                         st.session_state[f"adm_{k}"] = v
                     break
     except Exception:
         pass
 
-# CACHE MEMORY: Blocca la lentezza bloccando i ricalcoli continui
+# CACHE MEMORY CON GENERAZIONE DEL DETTAGLIO PUNTI
 @st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
@@ -201,12 +217,12 @@ def get_admin_dashboard_data():
         sh = gc.open_by_key(ID_DEL_FOGLIO)
         
         try: ws_pro = sh.worksheet("Pronostici")
-        except: return pd.DataFrame(), [], None
+        except: return pd.DataFrame(), [], None, []
         try: ws_real = sh.worksheet("RisultatiReali")
         except: ws_real = None
         
         dati_utenti = ws_pro.get_all_values()
-        if not dati_utenti: return pd.DataFrame(), [], ws_pro
+        if not dati_utenti: return pd.DataFrame(), [], ws_pro, []
         
         reali_dict = {}
         if ws_real:
@@ -221,6 +237,7 @@ def get_admin_dashboard_data():
 
         classifica = []
         nomi_utenti = []
+        dettagli_list = [] # Accumulatore per Google Sheets
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
@@ -235,10 +252,12 @@ def get_admin_dashboard_data():
             
             punti_tot = 0
             punti_bonus = 0
+            punti_match_correnti = {} # Memoria per il singolo partecipante
             
             for i, m in enumerate(MATCHES):
                 key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                 key_num = str(i)
+                punteggio_assegnato = 0 
                 
                 r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
                 
@@ -261,24 +280,32 @@ def get_admin_dashboard_data():
                         px = (p1 + p2) // 2
                         
                         if u_esito == r_esito:
-                            if r_esito == 1: punti_tot += p1
-                            elif r_esito == 2: punti_tot += p2
-                            else: punti_tot += px
+                            if r_esito == 1: punteggio_assegnato += p1
+                            elif r_esito == 2: punteggio_assegnato += p2
+                            else: punteggio_assegnato += px
                             
                         if u_h == r_h and u_a == r_a:
-                            punti_tot += 50
+                            punteggio_assegnato += 50
                             punti_bonus += 50
-                            
+                
+                punti_tot += punteggio_assegnato
+                punti_match_correnti[key_str] = punteggio_assegnato
+
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
+            
+            # Compilazione record dettagliato
+            dettaglio_utente = {"Partecipante": nick, "Punti Totali": punti_tot}
+            dettaglio_utente.update(punti_match_correnti)
+            dettagli_list.append(dettaglio_utente)
             
         df = pd.DataFrame(classifica)
         if not df.empty:
             df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by=["Punti Totali", "Bonus Esatti"], ascending=[False, False]).reset_index(drop=True)
             df.index += 1
-        return df, nomi_utenti, ws_pro
+        return df, nomi_utenti, ws_pro, dettagli_list
     except Exception as e:
-        return pd.DataFrame(), [], None
+        return pd.DataFrame(), [], None, []
 
 def elimina_utente(ws, row_index):
     try: ws.delete_row(int(row_index))
@@ -318,12 +345,12 @@ def calcola_classifiche(prefisso=""):
 
 # --- 6. INTERFACCIA MAIN ---
 
+# Login Admin Discreto e Compattissimo (in alto a destra)
 st.markdown("<div class='admin-login-wrapper'>", unsafe_allow_html=True)
 admin_pw = st.text_input(" ", type="password", key="admin_auth", label_visibility="collapsed")
 is_admin = (admin_pw == "mondiali2026")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Attivazione sistema Paracadute al primo login dell'admin
 if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
     st.session_state["paracadute_attivato"] = True
@@ -400,7 +427,7 @@ if user or is_admin:
                 cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET ALGORITMICO "TENNISTICO" ---
+    # --- TAB BRACKET ALGORITMICO SIMMETRICO ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
@@ -418,10 +445,10 @@ if user or is_admin:
                     st.session_state[prefisso+mid]=t2; st.rerun()
             return st.session_state[prefisso+mid]
 
-        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare. La risposta è ora istantanea!")
+        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice per farla avanzare.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo spaziale geometrico millimetrico
+        # Algoritmo Matematico Spaziale
         def space(px): 
             if px > 0: st.markdown(f"<div style='height:{px}px; min-height:{px}px;'></div>", unsafe_allow_html=True)
 
@@ -446,44 +473,44 @@ if user or is_admin:
             
         with c_ott:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(47)
+            space(45)
             o1 = t_box(s1, s2, "O1")
-            space(126)
+            space(95)
             o2 = t_box(s3, s4, "O2")
-            space(126)
+            space(95)
             o3 = t_box(s5, s6, "O3")
-            space(126)
+            space(95)
             o4 = t_box(s7, s8, "O4")
-            space(126)
+            space(95)
             o5 = t_box(s9, s10, "O5")
-            space(126)
+            space(95)
             o6 = t_box(s11, s12, "O6")
-            space(126)
+            space(95)
             o7 = t_box(s13, s14, "O7")
-            space(126)
+            space(95)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(173)
+            space(140)
             q1 = t_box(o1, o2, "Q1")
-            space(378)
+            space(290)
             q2 = t_box(o3, o4, "Q2")
-            space(378)
+            space(290)
             q3 = t_box(o5, o6, "Q3")
-            space(378)
+            space(290)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(425)
+            space(335)
             sem1 = t_box(q1, q2, "SEM1")
-            space(819)
+            space(675)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(898)
+            space(725)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
@@ -518,7 +545,7 @@ if user or is_admin:
             st.header("👑 Pannello Admin")
             
             if st.session_state.get("admin_saved_success"):
-                st.success("✅ Risultati Reali e Tabellone salvati con successo! La classifica ufficiale è aggiornata.")
+                st.success("✅ Risultati Reali e Tabellone salvati con successo! La classifica ufficiale e i dettagli punti sono stati aggiornati.")
                 st.session_state["admin_saved_success"] = False
 
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
@@ -527,7 +554,8 @@ if user or is_admin:
                 st.write("### Classifica Ufficiale")
                 st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato il bottone 'Salva' blu in basso.")
                 
-                df_ranking, nomi_utenti, ws_pronostici = get_admin_dashboard_data()
+                # Ottieni i dati calcolati comprensivi di dettaglio
+                df_ranking, nomi_utenti, ws_pronostici, dettagli_list_gs = get_admin_dashboard_data()
                 
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
@@ -593,13 +621,18 @@ if user or is_admin:
                 render_wimbledon(prefisso="adm_")
                 
             st.divider()
-            if st.button("💾 SALVA TUTTO (RISULTATI E TABELLONE) IN GOOGLE SHEETS", type="primary", use_container_width=True):
+            if st.button("💾 SALVA TUTTO E AGGIORNA CLASSIFICA", type="primary", use_container_width=True):
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
                 chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
                 payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
+                    
+                    # Salva su file sheets separato anche i punteggi match-by-match per l'admin
+                    get_admin_dashboard_data.clear() # Svuota la cache in modo da ricalcolare i dati con le ultime modifiche
+                    _, _, _, nuovi_dettagli = get_admin_dashboard_data()
+                    salva_dettaglio_punti_sheets(nuovi_dettagli)
+                    
                     st.session_state["admin_saved_success"] = True
-                    get_admin_dashboard_data.clear() # Svuota la cache per i nuovi risultati
                     time.sleep(1) 
                     st.rerun()
