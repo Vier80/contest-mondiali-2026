@@ -524,7 +524,8 @@ if user or is_admin:
         st.markdown("<p style='text-align:center; color:#cbd5e1;'>Solo le prime 8 accedono alla fase ad eliminazione diretta.</p>", unsafe_allow_html=True)
         col_t1, col_t2, col_t3 = st.columns([1, 2, 1])
         with col_t2:
-            st.dataframe(df_terze.style.apply(lambda x: ['background: #064e3b; color: white' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
+            # Corretto background-color per essere letto correttamente da Streamlit
+            st.dataframe(df_terze.style.apply(lambda x: ['background-color: #064e3b; color: #ffffff;' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
 
     # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA E COMPATTA ---
     def render_wimbledon(prefisso=""):
@@ -621,6 +622,18 @@ if user or is_admin:
                 df_ranking, nomi_utenti, ws_pronostici, _ = get_admin_dashboard_data()
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
+                    
+                    testo_wa = "🏆 *Classifica WC 2026 Contest* 🏆%0A%0A"
+                    for idx, r_data in df_ranking.iterrows():
+                        testo_wa += f"{idx}. {r_data['Partecipante']} - {r_data['Punti Totali']} pt%0A"
+                    st.markdown(f'''
+                    <a href="https://wa.me/?text={testo_wa}" target="_blank" style="text-decoration:none;">
+                        <div style="background-color: #25D366; color: white; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 15px; margin-top: 5px;">
+                            💬 Condividi Classifica su WhatsApp
+                        </div>
+                    </a>
+                    ''', unsafe_allow_html=True)
+                    
                     st.write("#### Gestione Utenti")
                     col_del1, col_del2 = st.columns([2, 1])
                     with col_del1: utente_da_eliminare = st.selectbox("Seleziona Partecipante", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga: {x[1]})")
