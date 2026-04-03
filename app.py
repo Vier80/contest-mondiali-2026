@@ -8,37 +8,93 @@ import urllib.parse
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURAZIONE E GRAFICA ---
-st.set_page_config(page_title="WC 2026 Contest", layout="wide")
+st.set_page_config(page_title="WC 2026 Contest", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+    
+    /* Global Styles */
     .stApp { background-color: #f8fafc; color: #0f172a; font-family: 'Inter', sans-serif; }
     
-    .nick-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
-    button[data-baseweb="tab"] p { font-size: 18px !important; font-weight: 700 !important; color: #64748b !important; }
-    button[data-baseweb="tab"][aria-selected="true"] p { color: #0284c7 !important; }
+    /* Custom Header Landing Page */
+    .hero-header {
+        text-align: center; padding: 2rem 0 1rem 0;
+    }
+    .hero-title {
+        font-size: 3.5rem; font-weight: 900; margin-bottom: 0;
+        background: linear-gradient(90deg, #0ea5e9, #2563eb);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+        color: #64748b; font-size: 1.2rem; font-weight: 600; letter-spacing: 1px;
+    }
 
+    /* Tabs Styling */
+    button[data-baseweb="tab"] p { font-size: 17px !important; font-weight: 700 !important; color: #64748b !important; }
+    button[data-baseweb="tab"][aria-selected="true"] p { color: #2563eb !important; }
+
+    /* Match Containers & Inputs */
     .stElementContainer div[data-testid="stVerticalBlockBorderControl"] {
-        background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; 
-        border-radius: 8px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; 
+        border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stElementContainer div[data-testid="stVerticalBlockBorderControl"]:hover {
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1) !important;
     }
     
-    input[type="number"] {
+    input[type="number"], input[type="text"] {
         background-color: #f1f5f9 !important; color: #0f172a !important;
-        font-size: 22px !important; font-weight: 900 !important; border: 1px solid #94a3b8 !important;
-        border-radius: 6px !important; text-align: center !important; height: 45px !important;
+        font-size: 20px !important; font-weight: 800 !important; border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important; text-align: center !important; height: 45px !important;
+        transition: all 0.2s ease;
+    }
+    input[type="number"]:focus, input[type="text"]:focus {
+        border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
     }
     
-    /* Login Admin Discreto */
-    .admin-login-box input { height: 35px !important; font-size: 14px !important; border: 1px solid #e2e8f0 !important; background-color: transparent !important; color: #cbd5e1 !important;}
-    .admin-login-box input:focus { border: 1px solid #94a3b8 !important; color: #0f172a !important;}
+    /* Login Admin: INVISIBILE E DISCRETO AL MASSIMO */
+    .admin-login-wrapper {
+        position: absolute; top: 0; right: 0; z-index: 999;
+    }
+    .admin-login-wrapper input {
+        width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
+        background: transparent !important; padding: 0 !important; cursor: default;
+        transition: all 0.3s ease;
+    }
+    .admin-login-wrapper input:focus {
+        width: 150px !important; height: 35px !important; opacity: 1; cursor: text;
+        background: #ffffff !important; font-size: 12px !important; color: #475569 !important;
+        border: 1px solid #cbd5e1 !important; margin-top: 10px; margin-right: 10px;
+    }
     
-    .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 4px; }
-    .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 5px; }
+    /* Labels & Badges */
+    .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
+    .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 8px; }
     
-    .admin-match-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
-    .admin-match-title { font-size: 12px; font-weight: 800; text-align: center; color: #475569; margin-bottom: 5px; }
+    .admin-match-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+    .admin-match-title { font-size: 13px; font-weight: 800; text-align: center; color: #475569; margin-bottom: 8px; }
+    
+    /* Premium Bracket Styling */
+    div.stButton > button {
+        border-radius: 8px; font-weight: 700; border: 1px solid #e2e8f0;
+        background-color: #f8fafc; color: #475569; transition: all 0.2s ease;
+    }
+    div.stButton > button:hover {
+        border-color: #93c5fd; color: #2563eb; background-color: #eff6ff;
+    }
+    /* Pulsante squadra vincente (Primary) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+        border: none !important; color: white !important; font-weight: 800 !important;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3) !important;
+    }
+    .bracket-round-title {
+        font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;
+        color: #ffffff; background-color: #1e293b; padding: 6px 12px; border-radius: 20px;
+        text-align: center; margin-bottom: 20px; display: inline-block;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,14 +103,13 @@ if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
         st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = None  # Partono rigorosamente vuoti
-        st.session_state[f"adm_a_{i}"] = None  # Partono rigorosamente vuoti
+        st.session_state[f"adm_h_{i}"] = None  
+        st.session_state[f"adm_a_{i}"] = None  
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
     st.session_state["initialized"] = True
 
-# --- PULIZIA INIZIALE ZERI ADMIN ---
 if "admin_force_blank" not in st.session_state:
     for i in range(72):
         if st.session_state.get(f"adm_h_{i}") == 0: st.session_state[f"adm_h_{i}"] = None
@@ -116,7 +171,6 @@ def safe_json_parse(val):
     try: return json.loads(val)
     except: return {}
 
-# ESTRATTORE NUMERI INFALLIBILE
 def force_int(val):
     try:
         if val is None: return None
@@ -140,7 +194,6 @@ def get_admin_dashboard_data():
         dati_utenti = ws_pro.get_all_values()
         if not dati_utenti: return pd.DataFrame(), [], ws_pro
         
-        # Lettura Corazzata Risultati Reali Admin
         reali_dict = {}
         if ws_real:
             dati_reali = ws_real.get_all_values()
@@ -173,25 +226,19 @@ def get_admin_dashboard_data():
             punti_tot = 0
             punti_bonus = 0
             
-            # --- MOTORE DI CALCOLO ESTREMO ---
             for i, m in enumerate(MATCHES):
                 key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                 key_num = str(i)
                 
-                # Cerca i Reali (sia con nome chiave che con numero)
                 r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
                 
                 if isinstance(r_vals, list) and len(r_vals) >= 2:
                     r_h = force_int(r_vals[0])
                     r_a = force_int(r_vals[1])
                     
-                    # SE L'ADMIN HA INSERITO LA PARTITA (non è vuota)
                     if r_h is not None and r_a is not None:
-                        
-                        # Cerca Pronostico Utente
                         u_vals = user_gironi.get(key_str, user_gironi.get(key_num))
                         
-                        # Assume 0-0 se l'utente ha compilato in modo parziale
                         u_h, u_a = 0, 0 
                         if isinstance(u_vals, list) and len(u_vals) >= 2:
                             uh_f = force_int(u_vals[0])
@@ -199,7 +246,6 @@ def get_admin_dashboard_data():
                             if uh_f is not None: u_h = uh_f
                             if ua_f is not None: u_a = ua_f
                             
-                        # Calcolo Punti Ranking Esatto
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
                         
@@ -212,7 +258,6 @@ def get_admin_dashboard_data():
                             elif r_esito == 2: punti_tot += p2
                             else: punti_tot += px
                             
-                        # Bonus +50 pt
                         if u_h == r_h and u_a == r_a:
                             punti_tot += 50
                             punti_bonus += 50
@@ -242,7 +287,6 @@ def calcola_classifiche(prefisso=""):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
         
-        # Ignora i vuoti dell'Admin per evitare crash in UI
         if h is None or a is None or str(h).strip() == "" or str(a).strip() == "":
             continue
             
@@ -265,30 +309,50 @@ def calcola_classifiche(prefisso=""):
     list_terze = migliori_terze["Squadra"].tolist()
     return rankings_finali, list_terze, stats
 
-# --- 6. INTERFACCIA ---
-c_title, c_login = st.columns([9, 1])
-with c_title:
-    st.markdown("<h1 style='text-align:center; color:#0f172a; margin-top:10px; padding-left:10%;'>🏆 World Cup 2026 Contest</h1>", unsafe_allow_html=True)
-with c_login:
-    st.markdown("<div class='admin-login-box' style='margin-top:20px;'>", unsafe_allow_html=True)
-    admin_pw = st.text_input(" ", type="password", key="admin_auth", placeholder="🔒", label_visibility="collapsed")
-    is_admin = (admin_pw == "mondiali2026")
-    st.markdown("</div>", unsafe_allow_html=True)
+# --- 6. INTERFACCIA MAIN ---
 
-c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
-with c_nick:
-    user = st.text_input("Inserisci Nickname Partecipante:", placeholder="Es. Marco_88")
+# Admin Invisibile
+st.markdown("<div class='admin-login-wrapper'>", unsafe_allow_html=True)
+admin_pw = st.text_input(" ", type="password", key="admin_auth", label_visibility="collapsed")
+is_admin = (admin_pw == "mondiali2026")
+st.markdown("</div>", unsafe_allow_html=True)
 
-if user:
-    tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket Completo", "🚀 Invia"]
+# Intestazione Premium
+st.markdown("""
+<div class='hero-header'>
+    <h1 class='hero-title'>🏆 WC 2026 Contest</h1>
+    <p class='hero-subtitle'>Pronostica. Sfida. Domina.</p>
+</div>
+""", unsafe_allow_html=True)
+
+user = ""
+
+# Layout Landing Page se non c'è admin e non c'è utente
+if not is_admin:
+    st.write("<br><br>", unsafe_allow_html=True)
+    c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
+    with c_nick:
+        st.markdown("<h4 style='text-align:center; color:#334155; margin-bottom: 15px;'>Inserisci il tuo Nickname per iniziare</h4>", unsafe_allow_html=True)
+        user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
+        
+        if not user:
+            st.info("💡 Attenzione: Scegli un nome riconoscibile. Tutti i tuoi pronostici verranno salvati su di esso.")
+
+if user or is_admin:
+    
+    # Se Admin accede senza nickname, forza i tab a mostrarsi
+    tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket Completo"]
+    if user: tab_list.append("🚀 Invia Pronostici")
     if is_admin: tab_list.append("👑 Pannello Admin")
+    
     tabs = st.tabs(tab_list)
 
     # --- TAB GIRONI ---
     with tabs[0]:
         c_btn1, c_btn2, c_btn3 = st.columns([1, 1.5, 1])
         with c_btn2:
-            if st.button("🪄 Autocompila Gironi", use_container_width=True):
+            st.write("<br>", unsafe_allow_html=True)
+            if st.button("🪄 Autocompila Gironi Casualmente", use_container_width=True):
                 for i in range(72):
                     st.session_state[f"h_{i}"] = random.randint(0, 4)
                     st.session_state[f"a_{i}"] = random.randint(0, 4)
@@ -312,10 +376,10 @@ if user:
                             c1, in1, vs, in2, c2 = st.columns([1, 1.2, 0.3, 1.2, 1])
                             c1.image(get_flag(m['h']), width=30)
                             in1.number_input("H", min_value=0, max_value=9, key=f"h_{idx}", label_visibility="collapsed")
-                            vs.markdown("<p style='text-align:center; padding-top:6px; font-weight:900;'>-</p>", unsafe_allow_html=True)
+                            vs.markdown("<p style='text-align:center; padding-top:6px; font-weight:900; color:#cbd5e1;'>-</p>", unsafe_allow_html=True)
                             in2.number_input("A", min_value=0, max_value=9, key=f"a_{idx}", label_visibility="collapsed")
                             c2.image(get_flag(m['a']), width=30)
-                            st.markdown(f"<p style='text-align:center; font-size:12px; font-weight:700; margin-top:5px;'>{m['h']} v {m['a']}</p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='text-align:center; font-size:13px; font-weight:700; margin-top:8px; color:#334155;'>{m['h']} v {m['a']}</p>", unsafe_allow_html=True)
 
     # --- TAB CLASSIFICHE ---
     with tabs[1]:
@@ -325,7 +389,7 @@ if user:
             for k in range(3):
                 gid = list(G_TEAMS.keys())[i+k]
                 df = pd.DataFrame(stats_usr[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-                cs[k].write(f"**Gruppo {gid}**")
+                cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
     # --- TAB BRACKET (TORNEO INTERO) ---
@@ -339,18 +403,18 @@ if user:
             except: return "TBD"
         def t_box(t1, t2, mid):
             with st.container(border=True):
-                st.markdown(f"<div style='font-size:10px; color:#94a3b8; font-weight:700;'>{mid}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:10px; color:#94a3b8; font-weight:800; text-align:center; margin-bottom:5px;'>MATCH {mid}</div>", unsafe_allow_html=True)
                 if st.button(t1, key=f"btn1_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state[prefisso+mid]==t1 else "secondary"):
                     st.session_state[prefisso+mid]=t1; st.rerun()
                 if st.button(t2, key=f"btn2_{prefisso}{mid}", use_container_width=True, type="primary" if st.session_state[prefisso+mid]==t2 else "secondary"):
                     st.session_state[prefisso+mid]=t2; st.rerun()
             return st.session_state[prefisso+mid]
 
-        st.info("Clicca sui vincitori per farli avanzare nel tabellone.")
+        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare nel tabellone.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
         with c_sed:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Sedicesimi</p>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
             s1 = t_box(s_t("A",0), s_t3(0), "S1")
             s2 = t_box(s_t("B",1), s_t("C",1), "S2")
             s3 = t_box(s_t("D",0), s_t3(1), "S3")
@@ -369,51 +433,72 @@ if user:
             s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Ottavi</p>", unsafe_allow_html=True)
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:45px;'></div>", unsafe_allow_html=True)
             o1 = t_box(s1, s2, "O1")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o2 = t_box(s3, s4, "O2")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o3 = t_box(s5, s6, "O3")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o4 = t_box(s7, s8, "O4")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o5 = t_box(s9, s10, "O5")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o6 = t_box(s11, s12, "O6")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o7 = t_box(s13, s14, "O7")
-            st.markdown("<div style='height:80px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Quarti</p>", unsafe_allow_html=True)
-            st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:140px;'></div>", unsafe_allow_html=True)
             q1 = t_box(o1, o2, "Q1")
-            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
             q2 = t_box(o3, o4, "Q2")
-            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
             q3 = t_box(o5, o6, "Q3")
-            st.markdown("<div style='height:260px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
-            st.markdown("<p style='font-weight:800; color:#475569;'>Semi</p>", unsafe_allow_html=True)
-            st.markdown("<div style='height:300px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:330px;'></div>", unsafe_allow_html=True)
             sem1 = t_box(q1, q2, "SEM1")
-            st.markdown("<div style='height:580px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:620px;'></div>", unsafe_allow_html=True)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
-            st.markdown("<p style='font-weight:800; color:#1d4ed8;'>FINALE</p>", unsafe_allow_html=True)
-            st.markdown("<div style='height:600px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:650px;'></div>", unsafe_allow_html=True)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
 
     with tabs[2]:
         render_wimbledon(prefisso="")
+
+    # --- INVIO UTENTE ---
+    if user:
+        with tabs[3]:
+            st.write("### 🚀 Manda i Pronostici Ufficiali")
+            st.write("Verifica di aver completato tutti i gironi e tutto il tabellone prima di procedere.")
+            
+            if st.session_state.get("user_saved_success"):
+                st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!")
+                st.session_state["user_saved_success"] = False
+
+            st.write("<br>", unsafe_allow_html=True)
+            if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+                payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+                chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
+                payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
+                
+                if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
+                    st.session_state["user_saved_success"] = True
+                    time.sleep(1) 
+                    st.rerun()
 
     # --- ADMIN AREA ---
     if is_admin:
@@ -460,7 +545,7 @@ if user:
                             utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga Foglio: {x[1]})")
                         with col_del2:
                             st.write("<br>", unsafe_allow_html=True)
-                            if st.button("🗑️ Elimina", type="primary"):
+                            if st.button("🗑️ Elimina Utente", type="primary"):
                                 if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
                                     st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
                                     st.rerun() 
@@ -494,7 +579,6 @@ if user:
             with adm_tabs[2]:
                 render_wimbledon(prefisso="adm_")
                 
-            # --- IL TASTO ORA E' FUORI DALLE SOTTO-SCHEDE ---
             st.divider()
             if st.button("💾 SALVA TUTTO (RISULTATI E TABELLONE) IN GOOGLE SHEETS", type="primary", use_container_width=True):
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
@@ -505,21 +589,3 @@ if user:
                     st.session_state["admin_saved_success"] = True
                     time.sleep(1) 
                     st.rerun()
-
-    # --- INVIO ---
-    with tabs[3]:
-        st.write("### 🚀 Fase Finale")
-        
-        if st.session_state.get("user_saved_success"):
-            st.success("✅ Pronostici e Tabellone inviati con successo!")
-            st.session_state["user_saved_success"] = False
-
-        if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
-            payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
-            chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
-            payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
-            
-            if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
-                st.session_state["user_saved_success"] = True
-                time.sleep(1) 
-                st.rerun()
