@@ -14,10 +14,9 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
     
-    /* Global Styles */
     .stApp { background-color: #f8fafc; color: #0f172a; font-family: 'Inter', sans-serif; }
     
-    .hero-header { text-align: center; padding: 2rem 0 1rem 0; }
+    .hero-header { text-align: center; padding: 1rem 0 1rem 0; }
     .hero-title {
         font-size: 3.5rem; font-weight: 900; margin-bottom: 0;
         background: linear-gradient(90deg, #0ea5e9, #2563eb);
@@ -33,32 +32,13 @@ st.markdown("""
         border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05) !important;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .stElementContainer div[data-testid="stVerticalBlockBorderControl"]:hover {
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1) !important;
-    }
     
     input[type="number"], input[type="text"] {
         background-color: #f1f5f9 !important; color: #0f172a !important;
         font-size: 20px !important; font-weight: 800 !important; border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important; text-align: center !important; height: 45px !important;
-        transition: all 0.2s ease;
     }
-    input[type="number"]:focus, input[type="text"]:focus {
-        border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
-    }
-    
-    /* Login Admin: ALLINEATO A DESTRA, CORTISSIMO E DISCRETO */
-    .admin-login-wrapper { position: fixed; top: 10px; right: 10px; z-index: 9999; display: flex; justify-content: flex-end; width: 100px; }
-    .admin-login-wrapper input {
-        width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
-        background: transparent !important; padding: 0 !important; cursor: default;
-        transition: all 0.3s ease;
-    }
-    .admin-login-wrapper input:focus {
-        width: 80px !important; height: 30px !important; opacity: 1; cursor: text;
-        background: #ffffff !important; font-size: 12px !important; color: #475569 !important;
-        border: 1px solid #cbd5e1 !important; border-radius: 6px !important; outline: none !important;
-    }
+    input[type="password"] { font-size: 14px !important; height: 35px !important; }
     
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
     .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 8px; }
@@ -69,7 +49,7 @@ st.markdown("""
     /* Premium Bracket Styling */
     div.stButton > button {
         border-radius: 8px; font-weight: 700; border: 1px solid #e2e8f0;
-        background-color: #f8fafc; color: #475569; transition: all 0.2s ease; margin-bottom: 0px !important;
+        background-color: #f8fafc; color: #475569; margin-bottom: 0px !important;
     }
     div.stButton > button:hover { border-color: #93c5fd; color: #2563eb; background-color: #eff6ff; }
     div.stButton > button[kind="primary"] {
@@ -85,16 +65,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- LOGIN ADMIN CORTISSIMO ED ALLINEATO A DESTRA (Tramite layout nativo) ---
+# Usiamo una griglia 11:1 in cima alla pagina per forzare la barra ad essere minuscola.
+col_spacer, col_admin = st.columns([11, 1])
+with col_admin:
+    admin_pw = st.text_input("Admin Login", type="password", key="admin_auth", label_visibility="collapsed", placeholder="🔒")
+is_admin = (admin_pw == "mondiali2026")
+
 # --- 2. INIZIALIZZAZIONE MEMORIA (ANTI-CRASH) ---
 if "initialized" not in st.session_state:
     for i in range(72):
-        st.session_state[f"h_{i}"] = 0
-        st.session_state[f"a_{i}"] = 0
-        st.session_state[f"adm_h_{i}"] = None  
-        st.session_state[f"adm_a_{i}"] = None  
+        st.session_state[f"h_{i}"] = 0; st.session_state[f"a_{i}"] = 0
+        st.session_state[f"adm_h_{i}"] = None; st.session_state[f"adm_a_{i}"] = None  
     for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
-        st.session_state[k] = "TBD"
-        st.session_state[f"adm_{k}"] = "TBD"
+        st.session_state[k] = "TBD"; st.session_state[f"adm_{k}"] = "TBD"
     st.session_state["initialized"] = True
 
 if "admin_force_blank" not in st.session_state:
@@ -125,8 +109,7 @@ G_TEAMS = {
 
 MATCHES = []
 for gid, teams in G_TEAMS.items():
-    for h, a in [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]:
-        MATCHES.append({"gr": gid, "h": teams[h], "a": teams[a]})
+    for h, a in [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]: MATCHES.append({"gr": gid, "h": teams[h], "a": teams[a]})
 
 def get_flag(t):
     if not t or t in ["TBD", "In attesa..."]: return "https://flagcdn.com/w160/un.png"
@@ -150,26 +133,7 @@ def invia_google_sheets(tab_name, nick, dati):
         except: ws = sh.add_worksheet(title=tab_name, rows="1", cols="5")
         ws.append_row([nick, json.dumps(dati)])
         return True
-    except Exception as e:
-        st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API.")
-        return False
-
-# NUOVA FUNZIONE: Salva i punti match-by-match in un foglio a parte
-def salva_dettaglio_punti_sheets(dettagli_list):
-    if not dettagli_list: return
-    try:
-        gc = get_gspread_client()
-        sh = gc.open_by_key(ID_DEL_FOGLIO)
-        try: ws = sh.worksheet("DettaglioPunti")
-        except: ws = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
-        
-        df_det = pd.DataFrame(dettagli_list)
-        dati_da_inserire = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
-        ws.clear()
-        try: ws.update(range_name="A1", values=dati_da_inserire)
-        except: ws.update("A1", dati_da_inserire)
-    except Exception:
-        pass
+    except Exception: return False
 
 def safe_json_parse(val):
     try: return json.loads(val)
@@ -181,8 +145,7 @@ def force_int(val):
         s = str(val).strip().lower()
         if s == "" or s == "none" or s == "null": return None
         return int(float(s))
-    except:
-        return None
+    except: return None
 
 def carica_dati_paracadute():
     try:
@@ -204,10 +167,9 @@ def carica_dati_paracadute():
                     for k, v in bracket_data.items():
                         st.session_state[f"adm_{k}"] = v
                     break
-    except Exception:
-        pass
+    except Exception: pass
 
-# CACHE MEMORY - ORA CALCOLA ANCHE I PUNTI DETTAGLIATI
+# --- CALCOLO CLASSIFICA CON DETTAGLIO PUNTI ---
 @st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
@@ -235,7 +197,7 @@ def get_admin_dashboard_data():
 
         classifica = []
         nomi_utenti = []
-        dettagli_list = [] # Accumulatore per il foglio DettaglioPunti
+        dettagli_list = [] # Memoria per il nuovo foglio dettagli
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
@@ -248,21 +210,17 @@ def get_admin_dashboard_data():
             user_gironi = user_data.get("Gironi", user_data)
             if not isinstance(user_gironi, dict): continue
             
-            punti_tot = 0
-            punti_bonus = 0
-            punti_match_correnti = {} # Memoria dei singoli match
+            punti_tot = 0; punti_bonus = 0
+            dettaglio_utente = {"Partecipante": nick}
             
             for i, m in enumerate(MATCHES):
                 key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                 key_num = str(i)
-                punteggio_assegnato = 0
+                pt_match = 0
                 
                 r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
-                
                 if isinstance(r_vals, list) and len(r_vals) >= 2:
-                    r_h = force_int(r_vals[0])
-                    r_a = force_int(r_vals[1])
-                    
+                    r_h = force_int(r_vals[0]); r_a = force_int(r_vals[1])
                     if r_h is not None and r_a is not None:
                         u_vals = user_gironi.get(key_str, user_gironi.get(key_num))
                         u_h, u_a = 0, 0 
@@ -273,28 +231,25 @@ def get_admin_dashboard_data():
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
                         
-                        p1 = RANKING.get(m['h'], 0)
-                        p2 = RANKING.get(m['a'], 0)
-                        px = (p1 + p2) // 2
+                        p1 = RANKING.get(m['h'], 0); p2 = RANKING.get(m['a'], 0); px = (p1 + p2) // 2
                         
                         if u_esito == r_esito:
-                            if r_esito == 1: punteggio_assegnato += p1
-                            elif r_esito == 2: punteggio_assegnato += p2
-                            else: punteggio_assegnato += px
+                            if r_esito == 1: pt_match += p1
+                            elif r_esito == 2: pt_match += p2
+                            else: pt_match += px
                             
                         if u_h == r_h and u_a == r_a:
-                            punteggio_assegnato += 50
+                            pt_match += 50
                             punti_bonus += 50
                             
-                punti_tot += punteggio_assegnato
-                punti_match_correnti[key_str] = punteggio_assegnato
-                            
-            classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
-            
-            # Compilazione record dettagliato
-            dettaglio_utente = {"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus}
-            dettaglio_utente.update(punti_match_correnti)
+                punti_tot += pt_match
+                # Salviamo il punteggio vinto nella singola partita
+                dettaglio_utente[key_str] = pt_match
+                
+            dettaglio_utente["Punti Totali"] = punti_tot
+            dettaglio_utente["Punti Bonus"] = punti_bonus
             dettagli_list.append(dettaglio_utente)
+            classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
         df = pd.DataFrame(classifica)
         if not df.empty:
@@ -302,13 +257,12 @@ def get_admin_dashboard_data():
             df = df.sort_values(by=["Punti Totali", "Bonus Esatti"], ascending=[False, False]).reset_index(drop=True)
             df.index += 1
         return df, nomi_utenti, ws_pro, dettagli_list
-    except Exception as e:
-        return pd.DataFrame(), [], None, []
+    except Exception as e: return pd.DataFrame(), [], None, []
 
 def elimina_utente(ws, row_index):
     try: ws.delete_row(int(row_index))
     except:
-        try: ws.delete_rows(int(row_index))
+        try: ws.delete_rows(int(row_index)); return True
         except: return False
     return True
 
@@ -318,12 +272,8 @@ def calcola_classifiche(prefisso=""):
     for i, m in enumerate(MATCHES):
         h = st.session_state[f"{prefisso}h_{i}"]
         a = st.session_state[f"{prefisso}a_{i}"]
-        
-        if h is None or a is None or str(h).strip() == "" or str(a).strip() == "":
-            continue
-            
+        if h is None or a is None or str(h).strip() == "" or str(a).strip() == "": continue
         h, a = int(h), int(a)
-        
         stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
         stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
         if h > a: stats[m['gr']][m['h']]["Pt"] += 3
@@ -336,17 +286,10 @@ def calcola_classifiche(prefisso=""):
         df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
         rankings_finali[g] = df.index.tolist()
         terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "Gruppo": g})
-    
     migliori_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR"], ascending=False).head(8)
-    list_terze = migliori_terze["Squadra"].tolist()
-    return rankings_finali, list_terze, stats
+    return rankings_finali, migliori_terze["Squadra"].tolist(), stats
 
 # --- 6. INTERFACCIA MAIN ---
-
-st.markdown("<div class='admin-login-wrapper'>", unsafe_allow_html=True)
-admin_pw = st.text_input(" ", type="password", key="admin_auth", label_visibility="collapsed")
-is_admin = (admin_pw == "mondiali2026")
-st.markdown("</div>", unsafe_allow_html=True)
 
 if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
@@ -367,9 +310,7 @@ if not is_admin:
     with c_nick:
         st.markdown("<h4 style='text-align:center; color:#334155; margin-bottom: 15px;'>Inserisci il tuo Nickname per iniziare</h4>", unsafe_allow_html=True)
         user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
-        
-        if not user:
-            st.info("💡 Attenzione: Scegli un nome riconoscibile. Tutti i tuoi pronostici verranno salvati su di esso.")
+        if not user: st.info("💡 Attenzione: Scegli un nome riconoscibile. Tutti i tuoi pronostici verranno salvati su di esso.")
 
 if user or is_admin:
     
@@ -386,8 +327,7 @@ if user or is_admin:
             st.write("<br>", unsafe_allow_html=True)
             if st.button("🪄 Autocompila Gironi Casualmente", use_container_width=True):
                 for i in range(72):
-                    st.session_state[f"h_{i}"] = random.randint(0, 4)
-                    st.session_state[f"a_{i}"] = random.randint(0, 4)
+                    st.session_state[f"h_{i}"] = random.randint(0, 4); st.session_state[f"a_{i}"] = random.randint(0, 4)
                 st.rerun()
 
         st.write("<br>", unsafe_allow_html=True)
@@ -397,14 +337,11 @@ if user or is_admin:
             for c in range(4):
                 idx = r * 4 + c
                 if idx < 72:
-                    m = MATCHES[idx]
-                    p1, p2 = RANKING[m['h']], RANKING[m['a']]
-                    px = (p1 + p2) // 2
+                    m = MATCHES[idx]; p1, p2 = RANKING[m['h']], RANKING[m['a']]; px = (p1 + p2) // 2
                     with cols[c]:
                         with st.container(border=True):
                             st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}pt</span><span class='pts-badge'>X: {px}pt</span><span class='pts-badge'>2: {p2}pt</span></div>", unsafe_allow_html=True)
                             st.markdown("<span class='bonus-txt'>🎯 +50 pt Risultato Esatto</span>", unsafe_allow_html=True)
-                            
                             c1, in1, vs, in2, c2 = st.columns([1, 1.2, 0.3, 1.2, 1])
                             c1.image(get_flag(m['h']), width=30)
                             in1.number_input("H", min_value=0, max_value=9, key=f"h_{idx}", label_visibility="collapsed")
@@ -424,7 +361,7 @@ if user or is_admin:
                 cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET ALGORITMICO MATEMATICO ---
+    # --- TAB BRACKET: STRUTTURA AD ALBERO MATEMATICA ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
@@ -445,71 +382,49 @@ if user or is_admin:
         st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo spaziale geometrico perfetto. (Box height = ~100px)
-        def space(px): 
-            if px > 0: st.markdown(f"<div style='height:{px}px; min-height:{px}px;'></div>", unsafe_allow_html=True)
+        # Algoritmo SPAZIALE: l'altezza esatta di un box Streamlit è di circa 130px.
+        H = 130 
+        def space(multiplier):
+            pixels = int(multiplier * H)
+            if pixels > 0: st.markdown(f"<div style='height:{pixels}px; min-height:{pixels}px;'></div>", unsafe_allow_html=True)
 
         with c_sed:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
-            s1 = t_box(s_t("A",0), s_t3(0), "S1")
-            s2 = t_box(s_t("B",1), s_t("C",1), "S2")
-            s3 = t_box(s_t("D",0), s_t3(1), "S3")
-            s4 = t_box(s_t("E",1), s_t("F",1), "S4")
-            s5 = t_box(s_t("G",0), s_t3(2), "S5")
-            s6 = t_box(s_t("H",1), s_t("I",1), "S6")
-            s7 = t_box(s_t("J",0), s_t3(3), "S7")
-            s8 = t_box(s_t("K",1), s_t("L",1), "S8")
-            s9 = t_box(s_t("B",0), s_t3(4), "S9")
-            s10= t_box(s_t("E",0), s_t("A",1), "S10")
-            s11= t_box(s_t("C",0), s_t3(5), "S11")
-            s12= t_box(s_t("F",0), s_t("D",1), "S12")
-            s13= t_box(s_t("H",0), s_t3(6), "S13")
-            s14= t_box(s_t("K",0), s_t("G",1), "S14")
-            s15= t_box(s_t("I",0), s_t3(7), "S15")
-            s16= t_box(s_t("L",0), s_t("J",1), "S16")
+            s1 = t_box(s_t("A",0), s_t3(0), "S1"); s2 = t_box(s_t("B",1), s_t("C",1), "S2")
+            s3 = t_box(s_t("D",0), s_t3(1), "S3"); s4 = t_box(s_t("E",1), s_t("F",1), "S4")
+            s5 = t_box(s_t("G",0), s_t3(2), "S5"); s6 = t_box(s_t("H",1), s_t("I",1), "S6")
+            s7 = t_box(s_t("J",0), s_t3(3), "S7"); s8 = t_box(s_t("K",1), s_t("L",1), "S8")
+            s9 = t_box(s_t("B",0), s_t3(4), "S9"); s10= t_box(s_t("E",0), s_t("A",1), "S10")
+            s11= t_box(s_t("C",0), s_t3(5), "S11"); s12= t_box(s_t("F",0), s_t("D",1), "S12")
+            s13= t_box(s_t("H",0), s_t3(6), "S13"); s14= t_box(s_t("K",0), s_t("G",1), "S14")
+            s15= t_box(s_t("I",0), s_t3(7), "S15"); s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(50)
-            o1 = t_box(s1, s2, "O1")
-            space(100)
-            o2 = t_box(s3, s4, "O2")
-            space(100)
-            o3 = t_box(s5, s6, "O3")
-            space(100)
-            o4 = t_box(s7, s8, "O4")
-            space(100)
-            o5 = t_box(s9, s10, "O5")
-            space(100)
-            o6 = t_box(s11, s12, "O6")
-            space(100)
-            o7 = t_box(s13, s14, "O7")
-            space(100)
-            o8 = t_box(s15, s16, "O8")
+            space(0.5); o1 = t_box(s1, s2, "O1")
+            space(1.0); o2 = t_box(s3, s4, "O2")
+            space(1.0); o3 = t_box(s5, s6, "O3")
+            space(1.0); o4 = t_box(s7, s8, "O4")
+            space(1.0); o5 = t_box(s9, s10, "O5")
+            space(1.0); o6 = t_box(s11, s12, "O6")
+            space(1.0); o7 = t_box(s13, s14, "O7")
+            space(1.0); o8 = t_box(s15, s16, "O8")
 
         with c_qua:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(150)
-            q1 = t_box(o1, o2, "Q1")
-            space(300)
-            q2 = t_box(o3, o4, "Q2")
-            space(300)
-            q3 = t_box(o5, o6, "Q3")
-            space(300)
-            q4 = t_box(o7, o8, "Q4")
+            space(1.5); q1 = t_box(o1, o2, "Q1")
+            space(3.0); q2 = t_box(o3, o4, "Q2")
+            space(3.0); q3 = t_box(o5, o6, "Q3")
+            space(3.0); q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(350)
-            sem1 = t_box(q1, q2, "SEM1")
-            space(700)
-            sem2 = t_box(q3, q4, "SEM2")
+            space(3.5); sem1 = t_box(q1, q2, "SEM1")
+            space(7.0); sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(750)
-            vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
-            win = t_box(sem1, sem2, "WINNER")
+            space(7.5); vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"; win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
 
     with tabs[2]:
@@ -519,88 +434,39 @@ if user or is_admin:
     if user:
         with tabs[3]:
             st.write("### 🚀 Manda i Pronostici Ufficiali")
-            st.write("Verifica di aver completato tutti i gironi e tutto il tabellone prima di procedere.")
-            
-            if st.session_state.get("user_saved_success"):
-                st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!")
-                st.session_state["user_saved_success"] = False
-
-            st.write("<br>", unsafe_allow_html=True)
+            if st.session_state.get("user_saved_success"): st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!"); st.session_state["user_saved_success"] = False
             if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
                 payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
-                chiavi_bracket = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
-                payload_bracket = {k: st.session_state[k] for k in chiavi_bracket}
-                
+                payload_bracket = {k: st.session_state[k] for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]}
                 if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket}):
-                    st.session_state["user_saved_success"] = True
-                    time.sleep(1) 
-                    st.rerun()
+                    st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
 
-    # --- ADMIN AREA ---
+    # --- ADMIN AREA E CREAZIONE FOGLIO DETTAGLI ---
     if is_admin:
         with tabs[-1]:
             st.header("👑 Pannello Admin")
-            
-            if st.session_state.get("admin_saved_success"):
-                st.success("✅ Risultati Reali, Tabellone e Dettagli Punti salvati con successo! La classifica ufficiale è aggiornata.")
-                st.session_state["admin_saved_success"] = False
-
+            if st.session_state.get("admin_saved_success"): st.success("✅ Risultati, Tabellone e Dettaglio Punti aggiornati su Sheets!"); st.session_state["admin_saved_success"] = False
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
             
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
-                st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato il bottone 'Salva' blu in basso.")
-                
-                # Ottieni i dati calcolati comprensivi della lista dettagli
-                df_ranking, nomi_utenti, ws_pronostici, dettagli_list_gs = get_admin_dashboard_data()
-                
+                df_ranking, nomi_utenti, ws_pronostici, _ = get_admin_dashboard_data()
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
-                    
-                    st.write("<br>", unsafe_allow_html=True)
-                    wa_text = "🏆 *CLASSIFICA MONDIALE 2026* 🏆\n\n"
-                    for i, r in df_ranking.iterrows():
-                        wa_text += f"*{i}. {r['Partecipante']}* - {r['Punti Totali']} pt (Bonus: {r['Bonus Esatti']})\n"
-                    wa_text += "\n⚽ Generato dalla Master App!"
-                    wa_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(wa_text)}"
-                    
-                    c_wa1, c_wa2, c_wa3 = st.columns([1, 2, 1])
-                    with c_wa2:
-                        st.markdown(f"""
-                        <a href="{wa_url}" target="_blank" style="text-decoration:none; display:flex; justify-content:center;">
-                            <div style="background-color:#25D366; color:white; padding:12px 24px; border-radius:8px; text-align:center; font-weight:800; width:100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;">
-                                💬 Condividi Classifica su WhatsApp
-                            </div>
-                        </a>
-                        """, unsafe_allow_html=True)
-                    
-                    st.divider()
                     st.write("#### Gestione Utenti")
-                    if nomi_utenti:
-                        col_del1, col_del2 = st.columns([2, 1])
-                        with col_del1:
-                            utente_da_eliminare = st.selectbox("Seleziona Partecipante da eliminare", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga Foglio: {x[1]})")
-                        with col_del2:
-                            st.write("<br>", unsafe_allow_html=True)
-                            if st.button("🗑️ Elimina Utente", type="primary"):
-                                if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
-                                    st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
-                                    get_admin_dashboard_data.clear() # Svuota cache
-                                    st.rerun() 
-                                else:
-                                    st.error("Errore durante l'eliminazione.")
-                else:
-                    st.warning("Nessun partecipante o nessun risultato salvato per calcolare i punti.")
+                    col_del1, col_del2 = st.columns([2, 1])
+                    with col_del1: utente_da_eliminare = st.selectbox("Seleziona Partecipante", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga: {x[1]})")
+                    with col_del2:
+                        st.write("<br>", unsafe_allow_html=True)
+                        if st.button("🗑️ Elimina Utente", type="primary"):
+                            if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
+                                get_admin_dashboard_data.clear(); st.rerun()
+                else: st.warning("Nessun dato calcolabile.")
 
             with adm_tabs[1]:
-                col_btn_test, _ = st.columns([1, 2])
-                with col_btn_test:
-                    if st.button("🪄 Autocompila Reali (Test)"):
-                        for i in range(72):
-                            st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
-                            st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
-                        st.rerun()
-                
+                if st.button("🪄 Autocompila Reali (Test)"):
+                    for i in range(72): st.session_state[f"adm_h_{i}"] = random.randint(0, 3); st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
+                    st.rerun()
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -614,22 +480,28 @@ if user or is_admin:
                                 ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
                                 st.markdown("</div>", unsafe_allow_html=True)
                         
-            with adm_tabs[2]:
-                render_wimbledon(prefisso="adm_")
+            with adm_tabs[2]: render_wimbledon(prefisso="adm_")
                 
             st.divider()
             if st.button("💾 SALVA TUTTO E AGGIORNA CLASSIFICA", type="primary", use_container_width=True):
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
-                chiavi_bracket_adm = [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]
-                payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in chiavi_bracket_adm}
+                payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]]}
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
+                    get_admin_dashboard_data.clear() # Obbliga il sistema a ricalcolare i dati freschi
+                    _, _, _, dettagli_list_gs = get_admin_dashboard_data()
                     
-                    # Svuota la cache e genera i nuovi punti partita per partita da scrivere nel file sheets dedicato
-                    get_admin_dashboard_data.clear() 
-                    _, _, _, nuovi_dettagli = get_admin_dashboard_data()
-                    salva_dettaglio_punti_sheets(nuovi_dettagli)
+                    # SCRITTURA ROBUSTA DEL FOGLIO DETTAGLI
+                    if dettagli_list_gs:
+                        gc = get_gspread_client()
+                        sh = gc.open_by_key(ID_DEL_FOGLIO)
+                        try: ws_det = sh.worksheet("DettaglioPunti")
+                        except: ws_det = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
+                        
+                        df_det = pd.DataFrame(dettagli_list_gs).fillna(0) # Riempie i vuoti in modo sicuro
+                        dati_matrice = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
+                        ws_det.clear()
+                        try: ws_det.update(values=dati_matrice, range_name="A1")
+                        except TypeError: ws_det.update("A1", dati_matrice) # Fallback per versioni vecchie
                     
-                    st.session_state["admin_saved_success"] = True
-                    time.sleep(1) 
-                    st.rerun()
+                    st.session_state["admin_saved_success"] = True; time.sleep(1); st.rerun()
