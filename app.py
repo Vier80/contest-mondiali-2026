@@ -47,17 +47,17 @@ st.markdown("""
         border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
     }
     
-    /* Login Admin Invisibile */
-    .admin-login-wrapper { position: absolute; top: 0; right: 0; z-index: 999; }
+    /* Login Admin: INVISIBILE, CORTO E ALLINEATO A DESTRA */
+    .admin-login-wrapper { position: absolute; top: 10px; right: 10px; z-index: 999; display: flex; justify-content: flex-end; }
     .admin-login-wrapper input {
         width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
         background: transparent !important; padding: 0 !important; cursor: default;
         transition: all 0.3s ease;
     }
     .admin-login-wrapper input:focus {
-        width: 150px !important; height: 35px !important; opacity: 1; cursor: text;
+        width: 90px !important; height: 32px !important; opacity: 1; cursor: text;
         background: #ffffff !important; font-size: 12px !important; color: #475569 !important;
-        border: 1px solid #cbd5e1 !important; margin-top: 10px; margin-right: 10px;
+        border: 1px solid #cbd5e1 !important; border-radius: 6px !important;
     }
     
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
@@ -421,12 +421,12 @@ if user or is_admin:
         st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare. La risposta è ora istantanea!")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo spaziale geometrico perfetto
+        # Algoritmo spaziale geometrico millimetrico
         def space(px): 
             if px > 0: st.markdown(f"<div style='height:{px}px; min-height:{px}px;'></div>", unsafe_allow_html=True)
 
         with c_sed:
-            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
             s1 = t_box(s_t("A",0), s_t3(0), "S1")
             s2 = t_box(s_t("B",1), s_t("C",1), "S2")
             s3 = t_box(s_t("D",0), s_t3(1), "S3")
@@ -445,45 +445,45 @@ if user or is_admin:
             s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
-            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(42)
+            st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+            space(47)
             o1 = t_box(s1, s2, "O1")
-            space(85)
+            space(126)
             o2 = t_box(s3, s4, "O2")
-            space(85)
+            space(126)
             o3 = t_box(s5, s6, "O3")
-            space(85)
+            space(126)
             o4 = t_box(s7, s8, "O4")
-            space(85)
+            space(126)
             o5 = t_box(s9, s10, "O5")
-            space(85)
+            space(126)
             o6 = t_box(s11, s12, "O6")
-            space(85)
+            space(126)
             o7 = t_box(s13, s14, "O7")
-            space(85)
+            space(126)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
-            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(127)
+            st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+            space(173)
             q1 = t_box(o1, o2, "Q1")
-            space(255)
+            space(378)
             q2 = t_box(o3, o4, "Q2")
-            space(255)
+            space(378)
             q3 = t_box(o5, o6, "Q3")
-            space(255)
+            space(378)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
-            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(297)
+            st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+            space(425)
             sem1 = t_box(q1, q2, "SEM1")
-            space(595)
+            space(819)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
-            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(637)
+            st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+            space(898)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
@@ -560,7 +560,7 @@ if user or is_admin:
                             if st.button("🗑️ Elimina Utente", type="primary"):
                                 if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
                                     st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
-                                    get_admin_dashboard_data.clear() # Svouta cache
+                                    get_admin_dashboard_data.clear() # Svuota cache
                                     st.rerun() 
                                 else:
                                     st.error("Errore durante l'eliminazione.")
@@ -600,6 +600,6 @@ if user or is_admin:
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                     st.session_state["admin_saved_success"] = True
-                    get_admin_dashboard_data.clear() # Svuota la cache di calcolo per far aggiornare i punteggi
+                    get_admin_dashboard_data.clear() # Svuota la cache per i nuovi risultati
                     time.sleep(1) 
                     st.rerun()
