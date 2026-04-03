@@ -84,7 +84,6 @@ st.markdown("""
     div.stButton > button:hover {
         border-color: #93c5fd; color: #2563eb; background-color: #eff6ff;
     }
-    /* Pulsante squadra vincente (Primary) */
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
         border: none !important; color: white !important; font-weight: 800 !important;
@@ -340,7 +339,6 @@ if not is_admin:
 
 if user or is_admin:
     
-    # Se Admin accede senza nickname, forza i tab a mostrarsi
     tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket Completo"]
     if user: tab_list.append("🚀 Invia Pronostici")
     if is_admin: tab_list.append("👑 Pannello Admin")
@@ -392,7 +390,7 @@ if user or is_admin:
                 cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET (TORNEO INTERO) ---
+    # --- TAB BRACKET ALGORITMICO "TENNISTICO" ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
@@ -413,6 +411,11 @@ if user or is_admin:
         st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare nel tabellone.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
+        # Algoritmo distanziale matematico per allineamento simmetrico
+        BH = 110
+        def space(n):
+            if n > 0: st.markdown(f"<div style='height:{int(n*BH)}px'></div>", unsafe_allow_html=True)
+
         with c_sed:
             st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
             s1 = t_box(s_t("A",0), s_t3(0), "S1")
@@ -434,44 +437,44 @@ if user or is_admin:
             
         with c_ott:
             st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            st.markdown("<div style='height:45px;'></div>", unsafe_allow_html=True)
+            space(0.5)
             o1 = t_box(s1, s2, "O1")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o2 = t_box(s3, s4, "O2")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o3 = t_box(s5, s6, "O3")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o4 = t_box(s7, s8, "O4")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o5 = t_box(s9, s10, "O5")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o6 = t_box(s11, s12, "O6")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o7 = t_box(s13, s14, "O7")
-            st.markdown("<div style='height:85px;'></div>", unsafe_allow_html=True)
+            space(1)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
             st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            st.markdown("<div style='height:140px;'></div>", unsafe_allow_html=True)
+            space(1.5)
             q1 = t_box(o1, o2, "Q1")
-            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
+            space(3)
             q2 = t_box(o3, o4, "Q2")
-            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
+            space(3)
             q3 = t_box(o5, o6, "Q3")
-            st.markdown("<div style='height:280px;'></div>", unsafe_allow_html=True)
+            space(3)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
             st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            st.markdown("<div style='height:330px;'></div>", unsafe_allow_html=True)
+            space(3.5)
             sem1 = t_box(q1, q2, "SEM1")
-            st.markdown("<div style='height:620px;'></div>", unsafe_allow_html=True)
+            space(7)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
             st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            st.markdown("<div style='height:650px;'></div>", unsafe_allow_html=True)
+            space(7.5)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
@@ -563,6 +566,7 @@ if user or is_admin:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
+                # CORREZIONE: reinserito il parametro value=None per garantire input completamente vuoti
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -572,8 +576,8 @@ if user or is_admin:
                             with cols[c]:
                                 st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
                                 ci1, ci2 = st.columns(2)
-                                ci1.number_input("H", min_value=0, max_value=9, key=f"adm_h_{idx}", label_visibility="collapsed")
-                                ci2.number_input("A", min_value=0, max_value=9, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed")
+                                ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
                                 st.markdown("</div>", unsafe_allow_html=True)
                         
             with adm_tabs[2]:
