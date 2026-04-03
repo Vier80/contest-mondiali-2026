@@ -17,24 +17,17 @@ st.markdown("""
     /* Global Styles */
     .stApp { background-color: #f8fafc; color: #0f172a; font-family: 'Inter', sans-serif; }
     
-    /* Custom Header Landing Page */
-    .hero-header {
-        text-align: center; padding: 2rem 0 1rem 0;
-    }
+    .hero-header { text-align: center; padding: 2rem 0 1rem 0; }
     .hero-title {
         font-size: 3.5rem; font-weight: 900; margin-bottom: 0;
         background: linear-gradient(90deg, #0ea5e9, #2563eb);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .hero-subtitle {
-        color: #64748b; font-size: 1.2rem; font-weight: 600; letter-spacing: 1px;
-    }
+    .hero-subtitle { color: #64748b; font-size: 1.2rem; font-weight: 600; letter-spacing: 1px; }
 
-    /* Tabs Styling */
     button[data-baseweb="tab"] p { font-size: 17px !important; font-weight: 700 !important; color: #64748b !important; }
     button[data-baseweb="tab"][aria-selected="true"] p { color: #2563eb !important; }
 
-    /* Match Containers & Inputs */
     .stElementContainer div[data-testid="stVerticalBlockBorderControl"] {
         background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; 
         border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05) !important;
@@ -54,10 +47,8 @@ st.markdown("""
         border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
     }
     
-    /* Login Admin: INVISIBILE E DISCRETO AL MASSIMO */
-    .admin-login-wrapper {
-        position: absolute; top: 0; right: 0; z-index: 999;
-    }
+    /* Login Admin Invisibile */
+    .admin-login-wrapper { position: absolute; top: 0; right: 0; z-index: 999; }
     .admin-login-wrapper input {
         width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
         background: transparent !important; padding: 0 !important; cursor: default;
@@ -69,7 +60,6 @@ st.markdown("""
         border: 1px solid #cbd5e1 !important; margin-top: 10px; margin-right: 10px;
     }
     
-    /* Labels & Badges */
     .pts-badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid #bae6fd; margin: 0 3px; }
     .bonus-txt { color: #dc2626; font-size: 11px; font-weight: 800; display: block; text-align: center; margin-top: 8px; }
     
@@ -81,9 +71,7 @@ st.markdown("""
         border-radius: 8px; font-weight: 700; border: 1px solid #e2e8f0;
         background-color: #f8fafc; color: #475569; transition: all 0.2s ease;
     }
-    div.stButton > button:hover {
-        border-color: #93c5fd; color: #2563eb; background-color: #eff6ff;
-    }
+    div.stButton > button:hover { border-color: #93c5fd; color: #2563eb; background-color: #eff6ff; }
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
         border: none !important; color: white !important; font-weight: 800 !important;
@@ -92,7 +80,7 @@ st.markdown("""
     .bracket-round-title {
         font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px;
         color: #ffffff; background-color: #1e293b; padding: 6px 12px; border-radius: 20px;
-        text-align: center; margin-bottom: 20px; display: inline-block;
+        text-align: center; display: inline-block;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -145,7 +133,7 @@ def get_flag(t):
     m = {"Messico": "mx", "Sudafrica": "za", "Sudcorea": "kr", "Repubblica Ceca": "cz", "Canada": "ca", "Bosnia Erzegovina": "ba", "Qatar": "qa", "Svizzera": "ch", "Brasile": "br", "Marocco": "ma", "Haiti": "ht", "Scozia": "gb-sct", "USA": "us", "Paraguay": "py", "Australia": "au", "Turchia": "tr", "Germania": "de", "Curacao": "cw", "Costa D'Avorio": "ci", "Ecuador": "ec", "Olanda": "nl", "Giappone": "jp", "Svezia": "se", "Tunisia": "tn", "Belgio": "be", "Egitto": "eg", "Iran": "ir", "Nuova Zelanda": "nz", "Spagna": "es", "Capo Verde": "cv", "Arabia Saudita": "sa", "Uruguay": "uy", "Francia": "fr", "Senegal": "sn", "Iraq": "iq", "Norvegia": "no", "Argentina": "ar", "Algeria": "dz", "Austria": "at", "Giordania": "jo", "Portogallo": "pt", "DR Congo": "cd", "Uzbekistan": "uz", "Colombia": "co", "Inghilterra": "gb-eng", "Croazia": "hr", "Ghana": "gh", "Panama": "pa", "Italia": "it"}
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE GOOGLE SHEETS & MOTORE RANKING CORAZZATO ---
+# --- 4. CONNESSIONE E LOGICA (OTTIMIZZATA PER VELOCITA') ---
 def get_gspread_client():
     conf = json.loads(st.secrets["service_account"])
     creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -179,6 +167,34 @@ def force_int(val):
     except:
         return None
 
+# SISTEMA PARACADUTE: Auto-carica gli ultimi dati admin salvati per prevenire perdite
+def carica_dati_paracadute():
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
+        ws_real = sh.worksheet("RisultatiReali")
+        dati_reali = ws_real.get_all_values()
+        for row in reversed(dati_reali):
+            if len(row) >= 2:
+                data = safe_json_parse(row[1])
+                if isinstance(data, dict):
+                    gironi_data = data.get("Gironi", data)
+                    bracket_data = data.get("Bracket", {})
+                    # Ripristina Gironi
+                    for i, m in enumerate(MATCHES):
+                        key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+                        if key_str in gironi_data:
+                            st.session_state[f"adm_h_{i}"] = force_int(gironi_data[key_str][0])
+                            st.session_state[f"adm_a_{i}"] = force_int(gironi_data[key_str][1])
+                    # Ripristina Bracket
+                    for k, v in bracket_data.items():
+                        st.session_state[f"adm_{k}"] = v
+                    break
+    except Exception:
+        pass
+
+# CACHE MEMORY: Blocca la lentezza bloccando i ricalcoli continui
+@st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
         gc = get_gspread_client()
@@ -186,7 +202,6 @@ def get_admin_dashboard_data():
         
         try: ws_pro = sh.worksheet("Pronostici")
         except: return pd.DataFrame(), [], None
-        
         try: ws_real = sh.worksheet("RisultatiReali")
         except: ws_real = None
         
@@ -200,12 +215,9 @@ def get_admin_dashboard_data():
                 if len(row) >= 2:
                     data = safe_json_parse(row[1])
                     if isinstance(data, dict):
-                        if "Gironi" in data:
-                            reali_dict = data["Gironi"]
-                            break
-                        elif any(k.startswith("G_") or str(k).isdigit() for k in data.keys()):
-                            reali_dict = data
-                            break
+                        if "Gironi" in data: reali_dict = data["Gironi"]
+                        elif any(k.startswith("G_") or str(k).isdigit() for k in data.keys()): reali_dict = data
+                        break
 
         classifica = []
         nomi_utenti = []
@@ -218,7 +230,6 @@ def get_admin_dashboard_data():
             if not isinstance(user_data, dict): continue
             
             nomi_utenti.append((nick, idx + 1))
-            
             user_gironi = user_data.get("Gironi", user_data)
             if not isinstance(user_gironi, dict): continue
             
@@ -237,13 +248,10 @@ def get_admin_dashboard_data():
                     
                     if r_h is not None and r_a is not None:
                         u_vals = user_gironi.get(key_str, user_gironi.get(key_num))
-                        
                         u_h, u_a = 0, 0 
                         if isinstance(u_vals, list) and len(u_vals) >= 2:
-                            uh_f = force_int(u_vals[0])
-                            ua_f = force_int(u_vals[1])
-                            if uh_f is not None: u_h = uh_f
-                            if ua_f is not None: u_a = ua_f
+                            if force_int(u_vals[0]) is not None: u_h = force_int(u_vals[0])
+                            if force_int(u_vals[1]) is not None: u_a = force_int(u_vals[1])
                             
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
@@ -310,13 +318,16 @@ def calcola_classifiche(prefisso=""):
 
 # --- 6. INTERFACCIA MAIN ---
 
-# Admin Invisibile
 st.markdown("<div class='admin-login-wrapper'>", unsafe_allow_html=True)
 admin_pw = st.text_input(" ", type="password", key="admin_auth", label_visibility="collapsed")
 is_admin = (admin_pw == "mondiali2026")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Intestazione Premium
+# Attivazione sistema Paracadute al primo login dell'admin
+if is_admin and not st.session_state.get("paracadute_attivato"):
+    carica_dati_paracadute()
+    st.session_state["paracadute_attivato"] = True
+
 st.markdown("""
 <div class='hero-header'>
     <h1 class='hero-title'>🏆 WC 2026 Contest</h1>
@@ -326,7 +337,6 @@ st.markdown("""
 
 user = ""
 
-# Layout Landing Page se non c'è admin e non c'è utente
 if not is_admin:
     st.write("<br><br>", unsafe_allow_html=True)
     c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
@@ -408,16 +418,15 @@ if user or is_admin:
                     st.session_state[prefisso+mid]=t2; st.rerun()
             return st.session_state[prefisso+mid]
 
-        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare nel tabellone.")
+        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare. La risposta è ora istantanea!")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo distanziale matematico per allineamento simmetrico
-        BH = 110
-        def space(n):
-            if n > 0: st.markdown(f"<div style='height:{int(n*BH)}px'></div>", unsafe_allow_html=True)
+        # Algoritmo spaziale geometrico perfetto
+        def space(px): 
+            if px > 0: st.markdown(f"<div style='height:{px}px; min-height:{px}px;'></div>", unsafe_allow_html=True)
 
         with c_sed:
-            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
             s1 = t_box(s_t("A",0), s_t3(0), "S1")
             s2 = t_box(s_t("B",1), s_t("C",1), "S2")
             s3 = t_box(s_t("D",0), s_t3(1), "S3")
@@ -436,45 +445,45 @@ if user or is_admin:
             s16= t_box(s_t("L",0), s_t("J",1), "S16")
             
         with c_ott:
-            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(0.5)
+            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+            space(42)
             o1 = t_box(s1, s2, "O1")
-            space(1)
+            space(85)
             o2 = t_box(s3, s4, "O2")
-            space(1)
+            space(85)
             o3 = t_box(s5, s6, "O3")
-            space(1)
+            space(85)
             o4 = t_box(s7, s8, "O4")
-            space(1)
+            space(85)
             o5 = t_box(s9, s10, "O5")
-            space(1)
+            space(85)
             o6 = t_box(s11, s12, "O6")
-            space(1)
+            space(85)
             o7 = t_box(s13, s14, "O7")
-            space(1)
+            space(85)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
-            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(1.5)
+            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+            space(127)
             q1 = t_box(o1, o2, "Q1")
-            space(3)
+            space(255)
             q2 = t_box(o3, o4, "Q2")
-            space(3)
+            space(255)
             q3 = t_box(o5, o6, "Q3")
-            space(3)
+            space(255)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
-            st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(3.5)
+            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+            space(297)
             sem1 = t_box(q1, q2, "SEM1")
-            space(7)
+            space(595)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
-            st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(7.5)
+            st.markdown("<div style='text-align:center; height:50px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+            space(637)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
@@ -551,6 +560,7 @@ if user or is_admin:
                             if st.button("🗑️ Elimina Utente", type="primary"):
                                 if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
                                     st.success(f"{utente_da_eliminare[0]} eliminato! Ricaricamento in corso...")
+                                    get_admin_dashboard_data.clear() # Svouta cache
                                     st.rerun() 
                                 else:
                                     st.error("Errore durante l'eliminazione.")
@@ -566,7 +576,6 @@ if user or is_admin:
                             st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                         st.rerun()
                 
-                # CORREZIONE: reinserito il parametro value=None per garantire input completamente vuoti
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -591,5 +600,6 @@ if user or is_admin:
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                     st.session_state["admin_saved_success"] = True
+                    get_admin_dashboard_data.clear() # Svuota la cache di calcolo per far aggiornare i punteggi
                     time.sleep(1) 
                     st.rerun()
