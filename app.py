@@ -47,16 +47,16 @@ st.markdown("""
         border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
     }
     
-    /* Login Admin: ALLINEATO IN ALTO A DESTRA, COMPATTO E DISCRETO */
-    .admin-login-wrapper { position: fixed; top: 15px; right: 15px; z-index: 9999; }
+    /* Login Admin: ALLINEATO A DESTRA, CORTISSIMO E DISCRETO */
+    .admin-login-wrapper { position: fixed; top: 10px; right: 10px; z-index: 9999; display: flex; justify-content: flex-end; width: 100px; }
     .admin-login-wrapper input {
-        width: 20px !important; height: 20px !important; opacity: 0; border: none !important;
+        width: 15px !important; height: 15px !important; opacity: 0; border: none !important;
         background: transparent !important; padding: 0 !important; cursor: default;
         transition: all 0.3s ease;
     }
     .admin-login-wrapper input:focus {
-        width: 100px !important; height: 32px !important; opacity: 1; cursor: text;
-        background: #ffffff !important; font-size: 13px !important; color: #475569 !important;
+        width: 80px !important; height: 30px !important; opacity: 1; cursor: text;
+        background: #ffffff !important; font-size: 12px !important; color: #475569 !important;
         border: 1px solid #cbd5e1 !important; border-radius: 6px !important; outline: none !important;
     }
     
@@ -154,7 +154,7 @@ def invia_google_sheets(tab_name, nick, dati):
         st.error(f"❌ ERRORE: Impossibile scrivere sul file. Verifica le API.")
         return False
 
-# NUOVA FUNZIONE: Salva il dettaglio dei punti match per match
+# NUOVA FUNZIONE: Salva i punti match-by-match in un foglio a parte
 def salva_dettaglio_punti_sheets(dettagli_list):
     if not dettagli_list: return
     try:
@@ -166,10 +166,8 @@ def salva_dettaglio_punti_sheets(dettagli_list):
         df_det = pd.DataFrame(dettagli_list)
         dati_da_inserire = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
         ws.clear()
-        try:
-            ws.update(range_name="A1", values=dati_da_inserire)
-        except:
-            ws.update("A1", dati_da_inserire)
+        try: ws.update(range_name="A1", values=dati_da_inserire)
+        except: ws.update("A1", dati_da_inserire)
     except Exception:
         pass
 
@@ -209,7 +207,7 @@ def carica_dati_paracadute():
     except Exception:
         pass
 
-# CACHE MEMORY CON GENERAZIONE DEL DETTAGLIO PUNTI
+# CACHE MEMORY - ORA CALCOLA ANCHE I PUNTI DETTAGLIATI
 @st.cache_data(ttl=600)
 def get_admin_dashboard_data():
     try:
@@ -237,7 +235,7 @@ def get_admin_dashboard_data():
 
         classifica = []
         nomi_utenti = []
-        dettagli_list = [] # Accumulatore per Google Sheets
+        dettagli_list = [] # Accumulatore per il foglio DettaglioPunti
         
         for idx, row in enumerate(dati_utenti):
             if len(row) < 2: continue
@@ -252,12 +250,12 @@ def get_admin_dashboard_data():
             
             punti_tot = 0
             punti_bonus = 0
-            punti_match_correnti = {} # Memoria per il singolo partecipante
+            punti_match_correnti = {} # Memoria dei singoli match
             
             for i, m in enumerate(MATCHES):
                 key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                 key_num = str(i)
-                punteggio_assegnato = 0 
+                punteggio_assegnato = 0
                 
                 r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
                 
@@ -287,14 +285,14 @@ def get_admin_dashboard_data():
                         if u_h == r_h and u_a == r_a:
                             punteggio_assegnato += 50
                             punti_bonus += 50
-                
+                            
                 punti_tot += punteggio_assegnato
                 punti_match_correnti[key_str] = punteggio_assegnato
-
+                            
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
             # Compilazione record dettagliato
-            dettaglio_utente = {"Partecipante": nick, "Punti Totali": punti_tot}
+            dettaglio_utente = {"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus}
             dettaglio_utente.update(punti_match_correnti)
             dettagli_list.append(dettaglio_utente)
             
@@ -345,7 +343,6 @@ def calcola_classifiche(prefisso=""):
 
 # --- 6. INTERFACCIA MAIN ---
 
-# Login Admin Discreto e Compattissimo (in alto a destra)
 st.markdown("<div class='admin-login-wrapper'>", unsafe_allow_html=True)
 admin_pw = st.text_input(" ", type="password", key="admin_auth", label_visibility="collapsed")
 is_admin = (admin_pw == "mondiali2026")
@@ -427,7 +424,7 @@ if user or is_admin:
                 cs[k].markdown(f"<h4 style='color:#1e293b;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
                 cs[k].dataframe(df, use_container_width=True)
 
-    # --- TAB BRACKET ALGORITMICO SIMMETRICO ---
+    # --- TAB BRACKET ALGORITMICO MATEMATICO ---
     def render_wimbledon(prefisso=""):
         ranks, terze_list, _ = calcola_classifiche(prefisso)
         def s_t(g, pos):
@@ -445,10 +442,10 @@ if user or is_admin:
                     st.session_state[prefisso+mid]=t2; st.rerun()
             return st.session_state[prefisso+mid]
 
-        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice per farla avanzare.")
+        st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
         c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
         
-        # Algoritmo Matematico Spaziale
+        # Algoritmo spaziale geometrico perfetto. (Box height = ~100px)
         def space(px): 
             if px > 0: st.markdown(f"<div style='height:{px}px; min-height:{px}px;'></div>", unsafe_allow_html=True)
 
@@ -473,44 +470,44 @@ if user or is_admin:
             
         with c_ott:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-            space(45)
+            space(50)
             o1 = t_box(s1, s2, "O1")
-            space(95)
+            space(100)
             o2 = t_box(s3, s4, "O2")
-            space(95)
+            space(100)
             o3 = t_box(s5, s6, "O3")
-            space(95)
+            space(100)
             o4 = t_box(s7, s8, "O4")
-            space(95)
+            space(100)
             o5 = t_box(s9, s10, "O5")
-            space(95)
+            space(100)
             o6 = t_box(s11, s12, "O6")
-            space(95)
+            space(100)
             o7 = t_box(s13, s14, "O7")
-            space(95)
+            space(100)
             o8 = t_box(s15, s16, "O8")
 
         with c_qua:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
-            space(140)
+            space(150)
             q1 = t_box(o1, o2, "Q1")
-            space(290)
+            space(300)
             q2 = t_box(o3, o4, "Q2")
-            space(290)
+            space(300)
             q3 = t_box(o5, o6, "Q3")
-            space(290)
+            space(300)
             q4 = t_box(o7, o8, "Q4")
 
         with c_sem:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
-            space(335)
+            space(350)
             sem1 = t_box(q1, q2, "SEM1")
-            space(675)
+            space(700)
             sem2 = t_box(q3, q4, "SEM2")
 
         with c_fin:
             st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background-color:#0284c7;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
-            space(725)
+            space(750)
             vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"
             win = t_box(sem1, sem2, "WINNER")
             st.session_state[vinc_key] = win
@@ -545,7 +542,7 @@ if user or is_admin:
             st.header("👑 Pannello Admin")
             
             if st.session_state.get("admin_saved_success"):
-                st.success("✅ Risultati Reali e Tabellone salvati con successo! La classifica ufficiale e i dettagli punti sono stati aggiornati.")
+                st.success("✅ Risultati Reali, Tabellone e Dettagli Punti salvati con successo! La classifica ufficiale è aggiornata.")
                 st.session_state["admin_saved_success"] = False
 
             adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale"])
@@ -554,7 +551,7 @@ if user or is_admin:
                 st.write("### Classifica Ufficiale")
                 st.info("⚠️ I punti vengono assegnati **solo** dopo aver inserito i risultati reali e cliccato il bottone 'Salva' blu in basso.")
                 
-                # Ottieni i dati calcolati comprensivi di dettaglio
+                # Ottieni i dati calcolati comprensivi della lista dettagli
                 df_ranking, nomi_utenti, ws_pronostici, dettagli_list_gs = get_admin_dashboard_data()
                 
                 if not df_ranking.empty:
@@ -628,8 +625,8 @@ if user or is_admin:
                 
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket}):
                     
-                    # Salva su file sheets separato anche i punteggi match-by-match per l'admin
-                    get_admin_dashboard_data.clear() # Svuota la cache in modo da ricalcolare i dati con le ultime modifiche
+                    # Svuota la cache e genera i nuovi punti partita per partita da scrivere nel file sheets dedicato
+                    get_admin_dashboard_data.clear() 
                     _, _, _, nuovi_dettagli = get_admin_dashboard_data()
                     salva_dettaglio_punti_sheets(nuovi_dettagli)
                     
