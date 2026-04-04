@@ -108,6 +108,10 @@ if "admin_force_blank" not in st.session_state:
         if st.session_state.get(f"adm_a_{i}") == 0: st.session_state[f"adm_a_{i}"] = None
     st.session_state["admin_force_blank"] = True
 
+# Creazione di uno state per salvare il nickname in memoria
+if "current_user" not in st.session_state:
+    st.session_state["current_user"] = ""
+
 # --- 3. RANKING E DATI ---
 RANKING = {
     "Spagna": 1, "Argentina": 2, "Francia": 3, "Inghilterra": 4, "Brasile": 5, "Portogallo": 6, "Olanda": 7, "Belgio": 8,
@@ -464,11 +468,18 @@ st.markdown("""
 user = ""
 
 if not is_admin:
-    st.write("<br>", unsafe_allow_html=True)
-    c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
-    with c_nick:
-        st.markdown("<h4 style='text-align:center; color:#e2e8f0; margin-bottom: 15px;'>Inserisci il tuo Nickname per iniziare</h4>", unsafe_allow_html=True)
-        user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
+    if not st.session_state["current_user"]:
+        st.write("<br>", unsafe_allow_html=True)
+        c_space1, c_nick, c_space2 = st.columns([1, 1.5, 1])
+        with c_nick:
+            st.markdown("<h4 style='text-align:center; color:#e2e8f0; margin-bottom: 15px;'>Inserisci il tuo Nickname per iniziare</h4>", unsafe_allow_html=True)
+            input_user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
+            if input_user:
+                st.session_state["current_user"] = input_user
+                st.rerun()
+    else:
+        user = st.session_state["current_user"]
+        st.markdown(f"<div style='text-align: left; color: #00ff87; font-weight: 900; font-size: 1.3rem; margin-top: -20px; margin-bottom: 10px;'>👤 Partecipante: {user}</div>", unsafe_allow_html=True)
 
 if user or is_admin:
     
