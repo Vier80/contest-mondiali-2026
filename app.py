@@ -77,6 +77,25 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"]:has(.bracket-round-title) { align-items: stretch !important; }
     div[data-testid="column"]:has(.bracket-round-title) { display: flex !important; flex-direction: column !important; justify-content: space-around !important; }
     
+    /* LOGIN ADMIN SEGRETO */
+    div[data-testid="stTextInput"]:has(input[type="password"]) {
+        width: 40px;
+        margin: 50px auto 0 auto;
+        opacity: 0;
+        transition: all 0.4s ease;
+    }
+    div[data-testid="stTextInput"]:has(input[type="password"]):hover,
+    div[data-testid="stTextInput"]:has(input[type="password"]):focus-within {
+        opacity: 1;
+        width: 200px;
+    }
+    input[type="password"]::placeholder {
+        color: #444444 !important;
+        text-align: center;
+        font-weight: 900;
+        font-size: 18px;
+    }
+    
     @media (max-width: 768px) {
         .hero-title { font-size: 2.2rem !important; }
         .hero-subtitle { font-size: 1rem !important; }
@@ -100,13 +119,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIN ADMIN CORTISSIMO ED ALLINEATO A DESTRA ---
-col_spacer, col_admin = st.columns([11, 1])
-with col_admin:
-    admin_pw = st.text_input("Admin Login", type="password", key="admin_auth", label_visibility="collapsed", placeholder="🔒")
-is_admin = (admin_pw == "mondiali2026")
-
-# --- 2. INIZIALIZZAZIONE MEMORIA (ANTI-CRASH) ---
+# --- 2. INIZIALIZZAZIONE MEMORIA E GESTIONE ADMIN ---
 if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0; st.session_state[f"a_{i}"] = 0
@@ -123,9 +136,16 @@ if "admin_force_blank" not in st.session_state:
         if st.session_state.get(f"adm_a_{i}") == 0: st.session_state[f"adm_a_{i}"] = None
     st.session_state["admin_force_blank"] = True
 
-# Creazione di uno state per salvare il nickname in memoria
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
+
+if "is_admin" not in st.session_state:
+    st.session_state["is_admin"] = False
+
+if st.session_state.get("admin_auth") == "mondiali2026":
+    st.session_state["is_admin"] = True
+
+is_admin = st.session_state["is_admin"]
 
 # --- 3. RANKING E DATI ---
 RANKING = {
@@ -233,7 +253,7 @@ def carica_dati_paracadute():
     except Exception: pass
 
 def get_32_qualifiers(gironi_dict):
-    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
+    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
         key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
         key_num = str(i)
@@ -243,6 +263,7 @@ def get_32_qualifiers(gironi_dict):
             if h is not None and a is not None:
                 stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
                 stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
+                stats[m['gr']][m['h']]["Played"] += 1; stats[m['gr']][m['a']]["Played"] += 1
                 if h > a: stats[m['gr']][m['h']]["Pt"] += 3
                 elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
                 else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
@@ -250,10 +271,19 @@ def get_32_qualifiers(gironi_dict):
     rankings_finali = {}
     terze_squadre = []
     for g, ts in stats.items():
-        df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-        rankings_finali[g] = df.index.tolist()
-        terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"]})
-    migliori_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR"], ascending=False).head(8)["Squadra"].tolist()
+        df = pd.DataFrame(ts).T
+        if df["Played"].sum() == 0:
+            rankings_finali[g] = [] # FONDAMENTALE: Se nessun match è giocato, svuota il tabellone
+        else:
+            df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
+            rankings_finali[g] = df.index.tolist()
+            terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"]})
+            
+    terze_squadre_df = pd.DataFrame(terze_squadre)
+    if not terze_squadre_df.empty:
+        migliori_terze = terze_squadre_df.sort_values(["Pt", "DR"], ascending=False).head(8)["Squadra"].tolist()
+    else:
+        migliori_terze = []
     
     top_32 = []
     for g in rankings_finali: top_32.extend(rankings_finali[g][:2])
@@ -411,14 +441,15 @@ def elimina_utente(ws, row_index):
 
 # --- 5. CALCOLI CLASSIFICHE GIRONI E TERZE SQUADRE ---
 def calcola_classifiche(prefisso=""):
-    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0} for t in ts} for g, ts in G_TEAMS.items()}
+    stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
-        h = st.session_state[f"{prefisso}h_{i}"]
-        a = st.session_state[f"{prefisso}a_{i}"]
+        h = st.session_state.get(f"{prefisso}h_{i}")
+        a = st.session_state.get(f"{prefisso}a_{i}")
         if h is None or a is None or str(h).strip() == "" or str(a).strip() == "": continue
         h, a = int(h), int(a)
         stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
         stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
+        stats[m['gr']][m['h']]["Played"] += 1; stats[m['gr']][m['a']]["Played"] += 1
         if h > a: stats[m['gr']][m['h']]["Pt"] += 3
         elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
         else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
@@ -426,15 +457,22 @@ def calcola_classifiche(prefisso=""):
     rankings_finali = {}
     terze_squadre = []
     for g, ts in stats.items():
-        df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-        rankings_finali[g] = df.index.tolist()
-        terze_squadre.append({"Squadra": df.index[2], "Girone": g, "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
+        df = pd.DataFrame(ts).T
+        if df["Played"].sum() == 0:
+            rankings_finali[g] = [] # FONDAMENTALE: Svuota tutto se non ci sono match giocati
+        else:
+            df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
+            rankings_finali[g] = df.index.tolist()
+            terze_squadre.append({"Squadra": df.index[2], "Girone": g, "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
     
-    # Crea la tabella di tutte le terze e le ordina
-    terze_squadre_df = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
-    terze_squadre_df.index += 1
-    
-    migliori_terze = terze_squadre_df.head(8)["Squadra"].tolist()
+    terze_squadre_df = pd.DataFrame(terze_squadre)
+    if not terze_squadre_df.empty:
+        terze_squadre_df = terze_squadre_df.sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
+        terze_squadre_df.index += 1
+        migliori_terze = terze_squadre_df.head(8)["Squadra"].tolist()
+    else:
+        migliori_terze = []
+        
     return rankings_finali, migliori_terze, stats, terze_squadre_df
 
 # --- CREAZIONE PDF ---
@@ -482,13 +520,11 @@ if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
     st.session_state["paracadute_attivato"] = True
 
-# PER INSERIRE IL LOGO (ora è decommentato e centrato/ingrandito per la HomePage)
+# PER INSERIRE IL LOGO (ora è centrato e molto più grande)
 col_img1, col_img2, col_img3 = st.columns([1.5, 2, 1.5])
 with col_img2:
-    try:
-        st.image("logo.png", use_container_width=True)
-    except:
-        pass # Se non trova il file logo.png, non va in crash
+    try: st.image("logo.png", use_container_width=True)
+    except: pass
 
 st.markdown("""
 <div class='hero-header'>
@@ -509,6 +545,9 @@ if not is_admin:
             if input_user:
                 st.session_state["current_user"] = input_user
                 st.rerun()
+            
+            # --- MODALITA' NINJA PER L'ADMIN ---
+            st.text_input("Admin", type="password", key="admin_auth", label_visibility="collapsed", placeholder="V")
     else:
         user = st.session_state["current_user"]
         st.markdown(f"<div style='text-align: left; color: #00ff87; font-weight: 900; font-size: 1.3rem; margin-top: -20px; margin-bottom: 5px;'>👤 Partecipante: {user}</div>", unsafe_allow_html=True)
@@ -714,16 +753,7 @@ if user or is_admin:
                         
             with adm_tabs[2]: 
                 col_bt1, col_bt2 = st.columns([1, 1])
-                with col_bt1:
-                    if st.button("🪄 Autocompila Bracket (Test)", use_container_width=True):
-                        all_teams = [t for ts in G_TEAMS.values() for t in ts]
-                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = random.choice(all_teams)
-                        st.rerun()
-                with col_bt2:
-                    if st.button("🗑️ Svuota Bracket", type="primary", use_container_width=True):
-                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = "TBD"
-                        st.rerun()
-                        
+                
                 ranks_adm, terze_list_adm, _, _ = calcola_classifiche("adm_")
                 def s_t_adm(g, pos):
                     try: return ranks_adm[g][pos]
@@ -731,6 +761,51 @@ if user or is_admin:
                 def s_t3_adm(index):
                     try: return terze_list_adm[index]
                     except: return "TBD"
+                    
+                with col_bt1:
+                    if st.button("🪄 Autocompila Bracket (Test)", use_container_width=True):
+                        s1 = random.choice([s_t_adm("A",0), s_t3_adm(0)]); st.session_state["adm_S1"] = s1
+                        s2 = random.choice([s_t_adm("B",1), s_t_adm("C",1)]); st.session_state["adm_S2"] = s2
+                        s3 = random.choice([s_t_adm("D",0), s_t3_adm(1)]); st.session_state["adm_S3"] = s3
+                        s4 = random.choice([s_t_adm("E",1), s_t_adm("F",1)]); st.session_state["adm_S4"] = s4
+                        s5 = random.choice([s_t_adm("G",0), s_t3_adm(2)]); st.session_state["adm_S5"] = s5
+                        s6 = random.choice([s_t_adm("H",1), s_t_adm("I",1)]); st.session_state["adm_S6"] = s6
+                        s7 = random.choice([s_t_adm("J",0), s_t3_adm(3)]); st.session_state["adm_S7"] = s7
+                        s8 = random.choice([s_t_adm("K",1), s_t_adm("L",1)]); st.session_state["adm_S8"] = s8
+                        s9 = random.choice([s_t_adm("B",0), s_t3_adm(4)]); st.session_state["adm_S9"] = s9
+                        s10 = random.choice([s_t_adm("E",0), s_t_adm("A",1)]); st.session_state["adm_S10"] = s10
+                        s11 = random.choice([s_t_adm("C",0), s_t3_adm(5)]); st.session_state["adm_S11"] = s11
+                        s12 = random.choice([s_t_adm("F",0), s_t_adm("D",1)]); st.session_state["adm_S12"] = s12
+                        s13 = random.choice([s_t_adm("H",0), s_t3_adm(6)]); st.session_state["adm_S13"] = s13
+                        s14 = random.choice([s_t_adm("K",0), s_t_adm("G",1)]); st.session_state["adm_S14"] = s14
+                        s15 = random.choice([s_t_adm("I",0), s_t3_adm(7)]); st.session_state["adm_S15"] = s15
+                        s16 = random.choice([s_t_adm("L",0), s_t_adm("J",1)]); st.session_state["adm_S16"] = s16
+                        
+                        o1 = random.choice([s1, s2]); st.session_state["adm_O1"] = o1
+                        o2 = random.choice([s3, s4]); st.session_state["adm_O2"] = o2
+                        o3 = random.choice([s5, s6]); st.session_state["adm_O3"] = o3
+                        o4 = random.choice([s7, s8]); st.session_state["adm_O4"] = o4
+                        o5 = random.choice([s9, s10]); st.session_state["adm_O5"] = o5
+                        o6 = random.choice([s11, s12]); st.session_state["adm_O6"] = o6
+                        o7 = random.choice([s13, s14]); st.session_state["adm_O7"] = o7
+                        o8 = random.choice([s15, s16]); st.session_state["adm_O8"] = o8
+                        
+                        q1 = random.choice([o1, o2]); st.session_state["adm_Q1"] = q1
+                        q2 = random.choice([o3, o4]); st.session_state["adm_Q2"] = q2
+                        q3 = random.choice([o5, o6]); st.session_state["adm_Q3"] = q3
+                        q4 = random.choice([o7, o8]); st.session_state["adm_Q4"] = q4
+                        
+                        sem1 = random.choice([q1, q2]); st.session_state["adm_SEM1"] = sem1
+                        sem2 = random.choice([q3, q4]); st.session_state["adm_SEM2"] = sem2
+                        
+                        win = random.choice([sem1, sem2]); st.session_state["adm_WINNER"] = win
+                        st.rerun()
+                        
+                with col_bt2:
+                    if st.button("🗑️ Svuota Bracket", type="primary", use_container_width=True):
+                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = "TBD"
+                        st.rerun()
+                        
                 def t_box_adm(t1, t2, mid):
                     with st.container(border=True):
                         st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>MATCH {mid}</div>", unsafe_allow_html=True)
