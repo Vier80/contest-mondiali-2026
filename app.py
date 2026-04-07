@@ -464,6 +464,7 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
 
 
 # --- 6. INTERFACCIA MAIN ---
+
 if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
     st.session_state["paracadute_attivato"] = True
@@ -573,4 +574,208 @@ if user or is_admin:
                         st.session_state[prefisso+mid]=t2; st.rerun()
                 return st.session_state[prefisso+mid]
     
-            st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquad
+            st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
+            c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
+    
+            with c_sed:
+                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+                s1 = t_box(s_t("A",0), s_t3(0), "S1"); s2 = t_box(s_t("B",1), s_t("C",1), "S2")
+                s3 = t_box(s_t("D",0), s_t3(1), "S3"); s4 = t_box(s_t("E",1), s_t("F",1), "S4")
+                s5 = t_box(s_t("G",0), s_t3(2), "S5"); s6 = t_box(s_t("H",1), s_t("I",1), "S6")
+                s7 = t_box(s_t("J",0), s_t3(3), "S7"); s8 = t_box(s_t("K",1), s_t("L",1), "S8")
+                s9 = t_box(s_t("B",0), s_t3(4), "S9"); s10= t_box(s_t("E",0), s_t("A",1), "S10")
+                s11= t_box(s_t("C",0), s_t3(5), "S11"); s12= t_box(s_t("F",0), s_t("D",1), "S12")
+                s13= t_box(s_t("H",0), s_t3(6), "S13"); s14= t_box(s_t("K",0), s_t("G",1), "S14")
+                s15= t_box(s_t("I",0), s_t3(7), "S15"); s16= t_box(s_t("L",0), s_t("J",1), "S16")
+                
+            with c_ott:
+                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                o1 = t_box(s1, s2, "O1"); o2 = t_box(s3, s4, "O2")
+                o3 = t_box(s5, s6, "O3"); o4 = t_box(s7, s8, "O4")
+                o5 = t_box(s9, s10, "O5"); o6 = t_box(s11, s12, "O6")
+                o7 = t_box(s13, s14, "O7"); o8 = t_box(s15, s16, "O8")
+    
+            with c_qua:
+                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                q1 = t_box(o1, o2, "Q1"); q2 = t_box(o3, o4, "Q2")
+                q3 = t_box(o5, o6, "Q3"); q4 = t_box(o7, o8, "Q4")
+    
+            with c_sem:
+                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                sem1 = t_box(q1, q2, "SEM1"); sem2 = t_box(q3, q4, "SEM2")
+    
+            with c_fin:
+                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+                vinc_key = "adm_vincitore" if prefisso == "adm_" else "WINNER"; win = t_box(sem1, sem2, "WINNER")
+                st.session_state[vinc_key] = win
+                
+        with tabs[2]:
+            render_wimbledon(prefisso="")
+            
+        # --- TAB TOP SCORER ---
+        with tabs[3]:
+            st.write("### ⚽ Chi sarà il Capocannoniere?")
+            st.write("Indovina il giocatore che segnerà più gol nel torneo. Se indovini il nome esatto decretato a fine competizione, guadagnerai **300 punti** bonus!")
+            st.session_state["top_scorer"] = st.text_input("Nome del Top Scorer (es. Kylian Mbappé):", value=st.session_state.get("top_scorer", ""))
+            
+        # --- INVIO UTENTE E PDF ---
+        with tabs[4]:
+            st.write("### 🚀 Manda i Pronostici Ufficiali")
+            if st.session_state.get("user_saved_success"): st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!"); st.session_state["user_saved_success"] = False
+            
+            c_snd, c_pdf = st.columns(2)
+            with c_snd:
+                if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+                    payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+                    payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
+                    payload_top_scorer = st.session_state.get("top_scorer", "")
+                    if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket, "TopScorer": payload_top_scorer}):
+                        st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
+            
+            with c_pdf:
+                if HAS_FPDF:
+                    payload_user_tmp = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
+                    payload_bracket_tmp = {k: st.session_state[k] for k in BRACKET_KEYS}
+                    pdf_b64 = genera_pdf_b64(user, payload_user_tmp, payload_bracket_tmp, st.session_state.get("top_scorer", ""))
+                    if pdf_b64:
+                        href = f'<a href="data:application/pdf;base64,{pdf_b64}" download="Pronostici_WC2026_{user}.pdf" style="text-decoration: none;"><div style="background: linear-gradient(135deg, #00ff87 0%, #3b82f6 100%); color: #000; padding: 7px 10px; text-align: center; border-radius: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(0, 255, 135, 0.3); cursor: pointer; min-height: 35px; line-height: 25px;">📄 SCARICA LE TUE SCELTE IN PDF</div></a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                else:
+                    st.info("⚠️ Crea un file 'requirements.txt' con la scritta 'fpdf' per abilitare il download PDF.")
+
+    # --- ADMIN AREA ---
+    if is_admin:
+        with tabs[0]:
+            st.header("👑 Pannello Admin")
+            if st.session_state.get("admin_saved_success"): st.success("✅ Risultati e Tabellone salvati con successo!")
+            if st.session_state.get("admin_dettagli_errore"): st.error(f"❌ Errore Dettaglio Punti: {st.session_state['admin_dettagli_errore']}"); st.session_state["admin_dettagli_errore"] = None
+
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale", "🎯 Top Scorer Reale", "🗑️ Reset Dati"])
+            
+            with adm_tabs[0]:
+                st.write("### Classifica Ufficiale")
+                df_ranking, nomi_utenti, ws_pronostici, _ = get_admin_dashboard_data()
+                if not df_ranking.empty:
+                    st.dataframe(df_ranking, use_container_width=True)
+                    
+                    testo_wa = "🏆 *Classifica WC 2026 Contest* 🏆%0A%0A"
+                    for idx, r_data in df_ranking.iterrows():
+                        testo_wa += f"{idx}. {r_data['Partecipante']} - {r_data['Punti Totali']} pt%0A"
+                    st.markdown(f'''
+                    <a href="https://wa.me/?text={testo_wa}" target="_blank" style="text-decoration:none;">
+                        <div style="background-color: #25D366; color: white; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 15px; margin-top: 5px;">
+                            💬 Condividi Classifica su WhatsApp
+                        </div>
+                    </a>
+                    ''', unsafe_allow_html=True)
+                    
+                    st.write("#### Gestione Utenti")
+                    col_del1, col_del2 = st.columns([2, 1])
+                    with col_del1: utente_da_eliminare = st.selectbox("Seleziona Partecipante", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga: {x[1]})")
+                    with col_del2:
+                        st.write("<br>", unsafe_allow_html=True)
+                        if st.button("🗑️ Elimina Utente", type="primary"):
+                            if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
+                                get_admin_dashboard_data.clear(); st.rerun()
+                else: st.warning("Nessun dato calcolabile.")
+
+            with adm_tabs[1]:
+                if st.button("🪄 Autocompila Reali Casualmente (Test)"):
+                    for i in range(72): st.session_state[f"adm_h_{i}"] = random.randint(0, 3); st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
+                    st.rerun()
+                for r in range(18):
+                    cols = st.columns(4)
+                    for c in range(4):
+                        idx = r * 4 + c
+                        if idx < 72:
+                            m = MATCHES[idx]
+                            with cols[c]:
+                                st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
+                                ci1, ci2 = st.columns(2)
+                                ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed")
+                                ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                        
+            with adm_tabs[2]: 
+                col_bt1, col_bt2 = st.columns([1, 1])
+                with col_bt1:
+                    if st.button("🪄 Autocompila Bracket Casualmente (Test)", use_container_width=True):
+                        all_teams = [t for ts in G_TEAMS.values() for t in ts]
+                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = random.choice(all_teams)
+                        st.rerun()
+                        
+                ranks_adm, terze_list_adm, _, _ = calcola_classifiche("adm_")
+                def s_t_adm(g, pos):
+                    try: return ranks_adm[g][pos]
+                    except: return "TBD"
+                def s_t3_adm(index):
+                    try: return terze_list_adm[index]
+                    except: return "TBD"
+                def t_box_adm(t1, t2, mid):
+                    with st.container(border=True):
+                        st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>MATCH {mid}</div>", unsafe_allow_html=True)
+                        if st.button(t1, key=f"btn1_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t1 else "secondary"):
+                            st.session_state["adm_"+mid]=t1; st.rerun()
+                        if st.button(t2, key=f"btn2_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t2 else "secondary"):
+                            st.session_state["adm_"+mid]=t2; st.rerun()
+                    return st.session_state["adm_"+mid]
+
+                st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
+                c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
+                with c_sed:
+                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+                    sa1 = t_box_adm(s_t_adm("A",0), s_t3_adm(0), "S1"); sa2 = t_box_adm(s_t_adm("B",1), s_t_adm("C",1), "S2")
+                    sa3 = t_box_adm(s_t_adm("D",0), s_t3_adm(1), "S3"); sa4 = t_box_adm(s_t_adm("E",1), s_t_adm("F",1), "S4")
+                    sa5 = t_box_adm(s_t_adm("G",0), s_t3_adm(2), "S5"); sa6 = t_box_adm(s_t_adm("H",1), s_t_adm("I",1), "S6")
+                    sa7 = t_box_adm(s_t_adm("J",0), s_t3_adm(3), "S7"); sa8 = t_box_adm(s_t_adm("K",1), s_t_adm("L",1), "S8")
+                    sa9 = t_box_adm(s_t_adm("B",0), s_t3_adm(4), "S9"); sa10= t_box_adm(s_t_adm("E",0), s_t_adm("A",1), "S10")
+                    sa11= t_box_adm(s_t_adm("C",0), s_t3_adm(5), "S11"); sa12= t_box_adm(s_t_adm("F",0), s_t_adm("D",1), "S12")
+                    sa13= t_box_adm(s_t_adm("H",0), s_t3_adm(6), "S13"); sa14= t_box_adm(s_t_adm("K",0), s_t_adm("G",1), "S14")
+                    sa15= t_box_adm(s_t_adm("I",0), s_t3_adm(7), "S15"); sa16= t_box_adm(s_t_adm("L",0), s_t_adm("J",1), "S16")
+                with c_ott:
+                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                    oa1 = t_box_adm(sa1, sa2, "O1"); oa2 = t_box_adm(sa3, sa4, "O2")
+                    oa3 = t_box_adm(sa5, sa6, "O3"); oa4 = t_box_adm(sa7, sa8, "O4")
+                    oa5 = t_box_adm(sa9, sa10, "O5"); oa6 = t_box_adm(sa11, sa12, "O6")
+                    oa7 = t_box_adm(sa13, sa14, "O7"); oa8 = t_box_adm(sa15, sa16, "O8")
+                with c_qua:
+                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                    qa1 = t_box_adm(oa1, oa2, "Q1"); qa2 = t_box_adm(oa3, oa4, "Q2")
+                    qa3 = t_box_adm(oa5, oa6, "Q3"); qa4 = t_box_adm(oa7, oa8, "Q4")
+                with c_sem:
+                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                    sema1 = t_box_adm(qa1, qa2, "SEM1"); sema2 = t_box_adm(qa3, qa4, "SEM2")
+                with c_fin:
+                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+                    wina = t_box_adm(sema1, sema2, "WINNER")
+                    st.session_state["adm_vincitore"] = wina
+                    
+            with adm_tabs[3]:
+                st.write("### 🎯 Top Scorer Ufficiale")
+                st.session_state["adm_top_scorer"] = st.text_input("Inserisci il nome del Capocannoniere reale (verrà confrontato con le scelte degli utenti):", value=st.session_state.get("adm_top_scorer", ""))
+            
+            with adm_tabs[4]:
+                st.write("### 🗑️ RESET TOTALE")
+                st.error("QUESTA AZIONE È IRREVERSIBILE! Cancellerà tutti i risultati reali inseriti (Gironi, Bracket e Top Scorer) su Google Sheets.")
+                st.warning("Dopo il reset, l'app si ricaricherà e tutti i campi di inserimento per l'admin appariranno vuoti o con 'TBD'.")
+                if st.button("CANCELLA DEFINITIVAMENTE TUTTI I DATI REALI", type="primary", use_container_width=True):
+                    if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": {}, "Bracket": {}, "TopScorer": ""}):
+                        get_admin_dashboard_data.clear()
+                        st.success("✅ Dati reali cancellati su Google Sheets. Ricaricamento dell'app per azzerare la memoria locale...")
+                        time.sleep(1.5)
+                        st.rerun()
+                
+            st.divider()
+            if st.button("💾 SALVA TUTTO E AGGIORNA CLASSIFICA", type="primary", use_container_width=True):
+                payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
+                payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in BRACKET_KEYS]}
+                payload_adm_top_scorer = st.session_state.get("adm_top_scorer", "")
+                
+                if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket, "TopScorer": payload_adm_top_scorer}):
+                    get_admin_dashboard_data.clear() 
+                    _, _, _, dettagli_list_gs = get_admin_dashboard_data()
+                    esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
+                    st.session_state["admin_saved_success"] = True
+                    if esito_dettagli != "OK": st.session_state["admin_dettagli_errore"] = esito_dettagli
+                    time.sleep(1) 
+                    st.rerun()
