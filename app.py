@@ -14,7 +14,7 @@ except ImportError:
     HAS_FPDF = False
 
 # --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
-st.set_page_config(page_title="FIFA World Cup Contest 2026", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="FIFA World Cup 2026 Contest", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
@@ -83,6 +83,19 @@ st.markdown("""
         div[data-testid="stVerticalBlockBorderControl"] { padding: 10px !important; }
         input[type="number"], input[type="text"] { font-size: 16px !important; height: 38px !important; }
         div.stButton > button { font-size: 12px !important; padding: 2px 5px !important; min-height: 35px !important; }
+        
+        /* FORZATURA MATCH ORIZZONTALI DA SMARTPHONE */
+        div[data-testid="stVerticalBlockBorderControl"] div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+        }
+        div[data-testid="stVerticalBlockBorderControl"] div[data-testid="column"] {
+            width: auto !important;
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+            padding: 0 2px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -469,14 +482,17 @@ if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
     st.session_state["paracadute_attivato"] = True
 
-# Logo in homepage centrato
-col_img1, col_img2, col_img3 = st.columns([2, 1, 2])
+# PER INSERIRE IL LOGO (ora è decommentato e centrato/ingrandito per la HomePage)
+col_img1, col_img2, col_img3 = st.columns([1.5, 2, 1.5])
 with col_img2:
-    st.image("logo.png", use_container_width=True)
+    try:
+        st.image("logo.png", use_container_width=True)
+    except:
+        pass # Se non trova il file logo.png, non va in crash
 
 st.markdown("""
 <div class='hero-header'>
-    <h1 class='hero-title'>FIFA World Cup Contest 2026</h1>
+    <h1 class='hero-title'>FIFA World Cup 2026 Contest</h1>
     <p class='hero-subtitle'>Pronostica. Sfida. Domina.</p>
 </div>
 """, unsafe_allow_html=True)
@@ -615,7 +631,7 @@ if user or is_admin:
         # --- TAB TOP SCORER ---
         with tabs[3]:
             st.write("### ⚽ Chi sarà il Capocannoniere?")
-            st.write("Indovina il giocatore che segnerà più gol nel torneo. Se indovini il nome esatto decretato a fine competizione, guadagnerai **300 punti** bonus!")
+            st.markdown("<p style='color: #60efff; font-weight: 600; font-size: 1.1rem;'>Indovina il giocatore che segnerà più gol nel torneo. Se indovini il nome esatto decretato a fine competizione, guadagnerai <b>300 punti</b> bonus!</p>", unsafe_allow_html=True)
             st.session_state["top_scorer"] = st.text_input("Nome del Top Scorer (es. Kylian Mbappé):", value=st.session_state.get("top_scorer", ""))
             
         # --- INVIO UTENTE E PDF ---
@@ -699,9 +715,13 @@ if user or is_admin:
             with adm_tabs[2]: 
                 col_bt1, col_bt2 = st.columns([1, 1])
                 with col_bt1:
-                    if st.button("🪄 Autocompila Bracket Casualmente (Test)", use_container_width=True):
+                    if st.button("🪄 Autocompila Bracket (Test)", use_container_width=True):
                         all_teams = [t for ts in G_TEAMS.values() for t in ts]
                         for k in BRACKET_KEYS: st.session_state["adm_"+k] = random.choice(all_teams)
+                        st.rerun()
+                with col_bt2:
+                    if st.button("🗑️ Svuota Bracket", type="primary", use_container_width=True):
+                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = "TBD"
                         st.rerun()
                         
                 ranks_adm, terze_list_adm, _, _ = calcola_classifiche("adm_")
@@ -752,7 +772,8 @@ if user or is_admin:
                     
             with adm_tabs[3]:
                 st.write("### 🎯 Top Scorer Ufficiale")
-                st.session_state["adm_top_scorer"] = st.text_input("Inserisci il nome del Capocannoniere reale (verrà confrontato con le scelte degli utenti):", value=st.session_state.get("adm_top_scorer", ""))
+                st.markdown("<p style='color: #60efff; font-weight: 600; font-size: 1.1rem;'>Inserisci il nome del Capocannoniere reale (verrà confrontato con le scelte degli utenti):</p>", unsafe_allow_html=True)
+                st.session_state["adm_top_scorer"] = st.text_input("Capocannoniere Reale:", value=st.session_state.get("adm_top_scorer", ""), label_visibility="collapsed")
             
             with adm_tabs[4]:
                 st.write("### 🗑️ RESET TOTALE")
