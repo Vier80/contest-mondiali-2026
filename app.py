@@ -77,10 +77,10 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"]:has(.bracket-round-title) { align-items: stretch !important; }
     div[data-testid="column"]:has(.bracket-round-title) { display: flex !important; flex-direction: column !important; justify-content: space-around !important; }
     
-    /* LOGIN ADMIN SEGRETO */
+    /* LOGIN ADMIN SEGRETO - SPOSTATO PIU' IN BASSO */
     div[data-testid="stTextInput"]:has(input[type="password"]) {
         width: 40px;
-        margin: 50px auto 0 auto;
+        margin: 150px auto 0 auto;
         opacity: 0;
         transition: all 0.4s ease;
     }
@@ -546,7 +546,7 @@ if not is_admin:
                 st.session_state["current_user"] = input_user
                 st.rerun()
             
-            # --- MODALITA' NINJA PER L'ADMIN ---
+            # --- MODALITA' NINJA PER L'ADMIN (MOLTO PIU' IN BASSO) ---
             st.text_input("Admin", type="password", key="admin_auth", label_visibility="collapsed", placeholder="V")
     else:
         user = st.session_state["current_user"]
@@ -665,6 +665,58 @@ if user or is_admin:
                 st.session_state[vinc_key] = win
                 
         with tabs[2]:
+            col_b1, col_b2 = st.columns([1, 1])
+            ranks_usr, terze_list_usr, _, _ = calcola_classifiche("")
+            def s_t_usr(g, pos):
+                try: return ranks_usr[g][pos]
+                except: return "TBD"
+            def s_t3_usr(index):
+                try: return terze_list_usr[index]
+                except: return "TBD"
+                
+            with col_b1:
+                if st.button("🪄 Autocompila Bracket Casualmente", use_container_width=True):
+                    s1 = random.choice([s_t_usr("A",0), s_t3_usr(0)]); st.session_state["S1"] = s1
+                    s2 = random.choice([s_t_usr("B",1), s_t_usr("C",1)]); st.session_state["S2"] = s2
+                    s3 = random.choice([s_t_usr("D",0), s_t3_usr(1)]); st.session_state["S3"] = s3
+                    s4 = random.choice([s_t_usr("E",1), s_t_usr("F",1)]); st.session_state["S4"] = s4
+                    s5 = random.choice([s_t_usr("G",0), s_t3_usr(2)]); st.session_state["S5"] = s5
+                    s6 = random.choice([s_t_usr("H",1), s_t_usr("I",1)]); st.session_state["S6"] = s6
+                    s7 = random.choice([s_t_usr("J",0), s_t3_usr(3)]); st.session_state["S7"] = s7
+                    s8 = random.choice([s_t_usr("K",1), s_t_usr("L",1)]); st.session_state["S8"] = s8
+                    s9 = random.choice([s_t_usr("B",0), s_t3_usr(4)]); st.session_state["S9"] = s9
+                    s10= random.choice([s_t_usr("E",0), s_t_usr("A",1)]); st.session_state["S10"] = s10
+                    s11= random.choice([s_t_usr("C",0), s_t3_usr(5)]); st.session_state["S11"] = s11
+                    s12= random.choice([s_t_usr("F",0), s_t_usr("D",1)]); st.session_state["S12"] = s12
+                    s13= random.choice([s_t_usr("H",0), s_t3_usr(6)]); st.session_state["S13"] = s13
+                    s14= random.choice([s_t_usr("K",0), s_t_usr("G",1)]); st.session_state["S14"] = s14
+                    s15= random.choice([s_t_usr("I",0), s_t3_usr(7)]); st.session_state["S15"] = s15
+                    s16= random.choice([s_t_usr("L",0), s_t_usr("J",1)]); st.session_state["S16"] = s16
+                    
+                    o1 = random.choice([s1, s2]); st.session_state["O1"] = o1
+                    o2 = random.choice([s3, s4]); st.session_state["O2"] = o2
+                    o3 = random.choice([s5, s6]); st.session_state["O3"] = o3
+                    o4 = random.choice([s7, s8]); st.session_state["O4"] = o4
+                    o5 = random.choice([s9, s10]); st.session_state["O5"] = o5
+                    o6 = random.choice([s11, s12]); st.session_state["O6"] = o6
+                    o7 = random.choice([s13, s14]); st.session_state["O7"] = o7
+                    o8 = random.choice([s15, s16]); st.session_state["O8"] = o8
+                    
+                    q1 = random.choice([o1, o2]); st.session_state["Q1"] = q1
+                    q2 = random.choice([o3, o4]); st.session_state["Q2"] = q2
+                    q3 = random.choice([o5, o6]); st.session_state["Q3"] = q3
+                    q4 = random.choice([o7, o8]); st.session_state["Q4"] = q4
+                    
+                    sem1 = random.choice([q1, q2]); st.session_state["SEM1"] = sem1
+                    sem2 = random.choice([q3, q4]); st.session_state["SEM2"] = sem2
+                    
+                    win = random.choice([sem1, sem2]); st.session_state["WINNER"] = win
+                    st.rerun()
+            with col_b2:
+                if st.button("🗑️ Svuota Bracket", key="usr_svuota_bracket", use_container_width=True):
+                    for k in BRACKET_KEYS: st.session_state[k] = "TBD"
+                    st.rerun()
+                    
             render_wimbledon(prefisso="")
             
         # --- TAB TOP SCORER ---
@@ -684,7 +736,8 @@ if user or is_admin:
                     payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
                     payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
                     payload_top_scorer = st.session_state.get("top_scorer", "")
-                    if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket, "TopScorer": payload_top_scorer}):
+                    timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
+                    if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket, "TopScorer": payload_top_scorer, "DataInvio": timestamp}):
                         st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
             
             with c_pdf:
@@ -866,8 +919,9 @@ if user or is_admin:
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
                 payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in BRACKET_KEYS]}
                 payload_adm_top_scorer = st.session_state.get("adm_top_scorer", "")
+                timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
                 
-                if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket, "TopScorer": payload_adm_top_scorer}):
+                if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket, "TopScorer": payload_adm_top_scorer, "DataAggiornamento": timestamp}):
                     get_admin_dashboard_data.clear() 
                     _, _, _, dettagli_list_gs = get_admin_dashboard_data()
                     esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
