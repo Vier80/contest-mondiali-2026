@@ -186,6 +186,53 @@ def get_gspread_client():
 # ⚠️ INSERISCI QUI IL TUO ID DEL FOGLIO ⚠️
 ID_DEL_FOGLIO = "1palUSBw4IlBFzU4dKtgT0tnjPiPEtxIc6K-DK05vXG8" 
 
+def safe_json_parse(val):
+    try: return json.loads(val)
+    except: return {}
+
+def force_int(val):
+    try:
+        if val is None: return None
+        s = str(val).strip().lower()
+        if s == "" or s == "none" or s == "null": return None
+        return int(float(s))
+    except: return None
+
+# --- NUOVA FUNZIONE: CARICA I DATI PRECEDENTI DELL'UTENTE ---
+def carica_dati_utente_da_sheets(nick):
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(ID_DEL_FOGLIO)
+        try: ws = sh.worksheet("Pronostici")
+        except: return False
+        
+        records = ws.get_all_values()
+        for row in reversed(records):
+            if len(row) >= 2 and row[0].strip().lower() == nick.strip().lower():
+                data = safe_json_parse(row[1])
+                if isinstance(data, dict):
+                    gironi_data = data.get("Gironi", data)
+                    bracket_data = data.get("Bracket", {})
+                    st.session_state["top_scorer"] = data.get("TopScorer", "")
+                    
+                    for i, m in enumerate(MATCHES):
+                        key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+                        if isinstance(gironi_data, dict) and key_str in gironi_data:
+                            vals = gironi_data[key_str]
+                            if isinstance(vals, list) and len(vals) >= 2:
+                                h_val = force_int(vals[0])
+                                a_val = force_int(vals[1])
+                                if h_val is not None: st.session_state[f"h_{i}"] = h_val
+                                if a_val is not None: st.session_state[f"a_{i}"] = a_val
+                    
+                    if isinstance(bracket_data, dict):
+                        for k in BRACKET_KEYS:
+                            if k in bracket_data:
+                                st.session_state[k] = bracket_data[k]
+                    return True
+        return False
+    except: return False
+
 def invia_google_sheets(tab_name, nick, dati):
     try:
         gc = get_gspread_client()
@@ -217,17 +264,6 @@ def salva_dettaglio_punti_sheets(dettagli_list):
         return "OK"
     except Exception as e: return f"Errore: {str(e)}"
 
-def safe_json_parse(val):
-    try: return json.loads(val)
-    except: return {}
-
-def force_int(val):
-    try:
-        if val is None: return None
-        s = str(val).strip().lower()
-        if s == "" or s == "none" or s == "null": return None
-        return int(float(s))
-    except: return None
 
 def carica_dati_paracadute():
     try:
@@ -492,7 +528,7 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", 'B', 11)
     timestamp = time.strftime("%d/%m/%Y alle %H:%M:%S")
-    pdf.cell(0, 10, txt=f"Pronostici Ufficiali di: {user}   |   Inviato il: {timestamp}", ln=1, align='C', fill=True)
+    pdf.cell(0, 10, txt=f"Pronostici Ufficiali di: {user}   |   Aggiornati il: {timestamp}", ln=1, align='C', fill=True)
     pdf.ln(8)
     
     # --- FASE A GIRONI (DUE COLONNE) ---
@@ -521,18 +557,89 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
             pdf.cell(90, 6, txt=riga_match, ln=2, align='C')
             
         if idx % 2 != 0:
-            y_start_gironi += 50 # Altezza stimata del blocco girone
+            y_start_gironi += 50 
             pdf.set_y(y_start_gironi)
             
-        # Gestione interruzione pagina automatica
         if y_start_gironi > 240 and idx % 2 != 0:
             pdf.add_page()
             y_start_gironi = pdf.get_y()
             
-    # Nel caso i gironi fossero dispari, abbassiamo lo starting point
     if len(G_TEAMS) % 2 != 0:
          y_start_gironi += 50
          pdf.set_y(y_start_gironi)
+
+    # --- RICOSTRUZIONE MATEMATICA ACCOPPIAMENTI PER PDF ---
+    stats_pdf = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
+    for i, m in enumerate(MATCHES):
+        key = f"G_{m['gr']} {m['h']}-{m['a']}"
+        if key in gironi_data:
+            vals = gironi_data[key]
+            if isinstance(vals, list) and len(vals) == 2:
+                h_val, a_val = vals[0], vals[1]
+                if h_val is not None and a_val is not None and str(h_val).strip() != "" and str(a_val).strip() != "":
+                    try:
+                        h, a = int(h_val), int(a_val)
+                        stats_pdf[m['gr']][m['h']]["GF"] += h; stats_pdf[m['gr']][m['a']]["GF"] += a
+                        stats_pdf[m['gr']][m['h']]["DR"] += (h - a); stats_pdf[m['gr']][m['a']]["DR"] += (a - h)
+                        stats_pdf[m['gr']][m['h']]["Played"] += 1; stats_pdf[m['gr']][m['a']]["Played"] += 1
+                        if h > a: stats_pdf[m['gr']][m['h']]["Pt"] += 3
+                        elif a > h: stats_pdf[m['gr']][m['a']]["Pt"] += 3
+                        else: stats_pdf[m['gr']][m['h']]["Pt"] += 1; stats_pdf[m['gr']][m['a']]["Pt"] += 1
+                    except: pass
+                    
+    ranks_pdf = {}
+    terze_squadre_pdf = []
+    for g, ts in stats_pdf.items():
+        df = pd.DataFrame(ts).T
+        if df["Played"].sum() == 0:
+            ranks_pdf[g] = []
+        else:
+            df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
+            ranks_pdf[g] = df.index.tolist()
+            terze_squadre_pdf.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
+    terze_list_pdf = pd.DataFrame(terze_squadre_pdf).sort_values(["Pt", "DR", "GF"], ascending=False)["Squadra"].tolist() if terze_squadre_pdf else []
+
+    def s_t_pdf(g, pos):
+        try: return ranks_pdf[g][pos]
+        except: return "TBD"
+    def s_t3_pdf(index):
+        try: return terze_list_pdf[index]
+        except: return "TBD"
+
+    matchups = {}
+    matchups["S1"] = (s_t_pdf("A",0), s_t3_pdf(0))
+    matchups["S2"] = (s_t_pdf("B",1), s_t_pdf("C",1))
+    matchups["S3"] = (s_t_pdf("D",0), s_t3_pdf(1))
+    matchups["S4"] = (s_t_pdf("E",1), s_t_pdf("F",1))
+    matchups["S5"] = (s_t_pdf("G",0), s_t3_pdf(2))
+    matchups["S6"] = (s_t_pdf("H",1), s_t_pdf("I",1))
+    matchups["S7"] = (s_t_pdf("J",0), s_t3_pdf(3))
+    matchups["S8"] = (s_t_pdf("K",1), s_t_pdf("L",1))
+    matchups["S9"] = (s_t_pdf("B",0), s_t3_pdf(4))
+    matchups["S10"] = (s_t_pdf("E",0), s_t_pdf("A",1))
+    matchups["S11"] = (s_t_pdf("C",0), s_t3_pdf(5))
+    matchups["S12"] = (s_t_pdf("F",0), s_t_pdf("D",1))
+    matchups["S13"] = (s_t_pdf("H",0), s_t3_pdf(6))
+    matchups["S14"] = (s_t_pdf("K",0), s_t_pdf("G",1))
+    matchups["S15"] = (s_t_pdf("I",0), s_t3_pdf(7))
+    matchups["S16"] = (s_t_pdf("L",0), s_t_pdf("J",1))
+    
+    matchups["O1"] = (bracket_data.get("S1","TBD"), bracket_data.get("S2","TBD"))
+    matchups["O2"] = (bracket_data.get("S3","TBD"), bracket_data.get("S4","TBD"))
+    matchups["O3"] = (bracket_data.get("S5","TBD"), bracket_data.get("S6","TBD"))
+    matchups["O4"] = (bracket_data.get("S7","TBD"), bracket_data.get("S8","TBD"))
+    matchups["O5"] = (bracket_data.get("S9","TBD"), bracket_data.get("S10","TBD"))
+    matchups["O6"] = (bracket_data.get("S11","TBD"), bracket_data.get("S12","TBD"))
+    matchups["O7"] = (bracket_data.get("S13","TBD"), bracket_data.get("S14","TBD"))
+    matchups["O8"] = (bracket_data.get("S15","TBD"), bracket_data.get("S16","TBD"))
+
+    matchups["Q1"] = (bracket_data.get("O1","TBD"), bracket_data.get("O2","TBD"))
+    matchups["Q2"] = (bracket_data.get("O3","TBD"), bracket_data.get("O4","TBD"))
+    matchups["Q3"] = (bracket_data.get("O5","TBD"), bracket_data.get("O6","TBD"))
+    matchups["Q4"] = (bracket_data.get("O7","TBD"), bracket_data.get("O8","TBD"))
+
+    matchups["SEM1"] = (bracket_data.get("Q1","TBD"), bracket_data.get("Q2","TBD"))
+    matchups["SEM2"] = (bracket_data.get("Q3","TBD"), bracket_data.get("Q4","TBD"))
 
     # --- FASE A ELIMINAZIONE DIRETTA ---
     pdf.add_page()
@@ -544,7 +651,7 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     def print_phase(keys, phase_name):
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 8, txt=phase_name, ln=1, align='L')
-        pdf.set_font("Arial", '', 10)
+        pdf.set_font("Arial", '', 8.5) # Font ridotto per far entrare l'accoppiamento
         y_start = pdf.get_y()
         
         for i, k in enumerate(keys):
@@ -553,8 +660,11 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
             else:
                 pdf.set_xy(110, y_start)
                 y_start += 6
+                
+            t1, t2 = matchups.get(k, ("TBD", "TBD"))
             val = bracket_data.get(k, "TBD")
-            pdf.cell(90, 6, txt=f"[{k}] Vincente: {val}", ln=0)
+            testo = f"[{k}] {t1} vs {t2} -> Vince: {val}"
+            pdf.cell(90, 6, txt=testo, ln=0)
             
         if len(keys) % 2 != 0:
             y_start += 6
@@ -579,7 +689,7 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     ts_nome = top_scorer_data.upper() if top_scorer_data else "NESSUNO"
     pdf.cell(0, 12, txt=f"CAPOCANNONIERE PRONOSTICATO: {ts_nome}", ln=1, align='C', fill=True)
 
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
     return base64.b64encode(pdf_bytes).decode()
 
 
@@ -589,7 +699,7 @@ if is_admin and not st.session_state.get("paracadute_attivato"):
     carica_dati_paracadute()
     st.session_state["paracadute_attivato"] = True
 
-# PER INSERIRE IL LOGO (ora è centrato e molto più grande)
+# PER INSERIRE IL LOGO
 col_img1, col_img2, col_img3 = st.columns([1.5, 2, 1.5])
 with col_img2:
     try: st.image("logo.png", use_container_width=True)
@@ -613,14 +723,20 @@ if not is_admin:
             input_user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
             if input_user:
                 st.session_state["current_user"] = input_user
+                if carica_dati_utente_da_sheets(input_user):
+                    st.session_state["loaded_previous"] = True
                 st.rerun()
             
-            # --- MODALITA' NINJA PER L'ADMIN (MOLTO PIU' IN BASSO) ---
+            # --- MODALITA' NINJA PER L'ADMIN ---
             st.text_input("Admin", type="password", key="admin_auth", label_visibility="collapsed", placeholder="V")
     else:
         user = st.session_state["current_user"]
         st.markdown(f"<div style='text-align: left; color: #00ff87; font-weight: 900; font-size: 1.3rem; margin-top: -20px; margin-bottom: 5px;'>👤 Partecipante: {user}</div>", unsafe_allow_html=True)
         st.warning("⏳ **DEADLINE INVIO PRONOSTICI:** Giovedì 11 giugno ore 20:30 CEST")
+        
+        if st.session_state.get("loaded_previous"):
+            st.success("👋 Bentornato! Abbiamo recuperato con successo i tuoi ultimi salvataggi.")
+            st.session_state["loaded_previous"] = False
 
 if user or is_admin:
     
@@ -797,11 +913,13 @@ if user or is_admin:
         # --- INVIO UTENTE E PDF ---
         with tabs[4]:
             st.write("### 🚀 Manda i Pronostici Ufficiali")
-            if st.session_state.get("user_saved_success"): st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati!"); st.session_state["user_saved_success"] = False
+            st.markdown("<p style='color:#cbd5e1;'>Puoi salvare le tue scelte in qualsiasi momento e tornare a completarle o modificarle ricollegandoti con lo stesso Nickname.</p>", unsafe_allow_html=True)
+            
+            if st.session_state.get("user_saved_success"): st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati / aggiornati!"); st.session_state["user_saved_success"] = False
             
             c_snd, c_pdf = st.columns(2)
             with c_snd:
-                if st.button("INVIA I TUOI PRONOSTICI DEFINITIVAMENTE", type="primary", use_container_width=True):
+                if st.button("💾 SALVA / AGGIORNA I TUOI PRONOSTICI", type="primary", use_container_width=True):
                     payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
                     payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
                     payload_top_scorer = st.session_state.get("top_scorer", "")
