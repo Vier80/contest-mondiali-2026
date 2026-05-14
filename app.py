@@ -480,36 +480,105 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     if not HAS_FPDF: return None
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_auto_page_break(auto=True, margin=15)
     
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt=f"Pronostici Ufficiali - WC 2026 Contest", ln=True, align='C')
+    # --- HEADER DESIGN ---
+    pdf.set_fill_color(0, 0, 0)
+    pdf.set_text_color(0, 255, 135)
+    pdf.set_font("Arial", 'B', 18)
+    pdf.cell(0, 15, txt="FIFA World Cup 2026 Contest", ln=1, align='C', fill=True)
+    
+    pdf.set_fill_color(40, 40, 40)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 11)
+    timestamp = time.strftime("%d/%m/%Y alle %H:%M:%S")
+    pdf.cell(0, 10, txt=f"Pronostici Ufficiali di: {user}   |   Inviato il: {timestamp}", ln=1, align='C', fill=True)
+    pdf.ln(8)
+    
+    # --- FASE A GIRONI (DUE COLONNE) ---
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt=f"Partecipante: {user}", ln=True, align='C')
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="FASE A GIRONI", ln=True, align='L')
-    pdf.set_font("Arial", size=10)
-    
-    for i, m in enumerate(MATCHES):
-        key = f"G_{m['gr']} {m['h']}-{m['a']}"
-        h_score, a_score = gironi_data.get(key, ["-", "-"])
-        pdf.cell(200, 6, txt=f"Girone {m['gr']}: {m['h']} {h_score} - {a_score} {m['a']}", ln=True)
-        
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="FASE A ELIMINAZIONE DIRETTA", ln=True, align='L')
-    pdf.set_font("Arial", size=10)
-    
-    for k in BRACKET_KEYS:
-        val = bracket_data.get(k, "TBD")
-        pdf.cell(200, 6, txt=f"Vincitore {k}: {val}", ln=True)
-        
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 10, txt="FASE A GIRONI", ln=1, align='C', fill=True)
     pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt=f"TOP SCORER PRONOSTICATO: {top_scorer_data}", ln=True, align='L')
+    
+    y_start_gironi = pdf.get_y()
+    for idx, g_name in enumerate(G_TEAMS.keys()):
+        if idx % 2 == 0:
+            pdf.set_xy(10, y_start_gironi)
+        else:
+            pdf.set_xy(110, y_start_gironi)
+            
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(90, 8, txt=f"GIRONE {g_name}", ln=2, align='C')
+        pdf.set_font("Arial", '', 10)
         
+        g_matches = [m for m in MATCHES if m['gr'] == g_name]
+        for m in g_matches:
+            key = f"G_{m['gr']} {m['h']}-{m['a']}"
+            h_score, a_score = gironi_data.get(key, ["-", "-"])
+            riga_match = f"{m['h']}   {h_score} - {a_score}   {m['a']}"
+            pdf.cell(90, 6, txt=riga_match, ln=2, align='C')
+            
+        if idx % 2 != 0:
+            y_start_gironi += 50 # Altezza stimata del blocco girone
+            pdf.set_y(y_start_gironi)
+            
+        # Gestione interruzione pagina automatica
+        if y_start_gironi > 240 and idx % 2 != 0:
+            pdf.add_page()
+            y_start_gironi = pdf.get_y()
+            
+    # Nel caso i gironi fossero dispari, abbassiamo lo starting point
+    if len(G_TEAMS) % 2 != 0:
+         y_start_gironi += 50
+         pdf.set_y(y_start_gironi)
+
+    # --- FASE A ELIMINAZIONE DIRETTA ---
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 10, txt="FASE A ELIMINAZIONE DIRETTA", ln=1, align='C', fill=True)
+    pdf.ln(5)
+    
+    def print_phase(keys, phase_name):
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, txt=phase_name, ln=1, align='L')
+        pdf.set_font("Arial", '', 10)
+        y_start = pdf.get_y()
+        
+        for i, k in enumerate(keys):
+            if i % 2 == 0:
+                pdf.set_xy(10, y_start)
+            else:
+                pdf.set_xy(110, y_start)
+                y_start += 6
+            val = bracket_data.get(k, "TBD")
+            pdf.cell(90, 6, txt=f"[{k}] Vincente: {val}", ln=0)
+            
+        if len(keys) % 2 != 0:
+            y_start += 6
+        pdf.set_y(y_start + 5)
+
+    print_phase([f"S{i}" for i in range(1, 17)], "SEDICESIMI DI FINALE")
+    print_phase([f"O{i}" for i in range(1, 9)], "OTTAVI DI FINALE")
+    print_phase([f"Q{i}" for i in range(1, 5)], "QUARTI DI FINALE")
+    print_phase(["SEM1", "SEM2"], "SEMIFINALI")
+    
+    # --- VINCITORE E TOP SCORER IN EVIDENZA ---
+    pdf.ln(5)
+    pdf.set_fill_color(0, 0, 0)
+    pdf.set_text_color(0, 255, 135)
+    pdf.set_font("Arial", 'B', 14)
+    win = bracket_data.get("WINNER", "TBD")
+    pdf.cell(0, 12, txt=f"VINCITORE DEL MONDIALE: {win.upper()}", ln=1, align='C', fill=True)
+    
+    pdf.ln(5)
+    pdf.set_fill_color(40, 40, 40)
+    pdf.set_text_color(255, 255, 255)
+    ts_nome = top_scorer_data.upper() if top_scorer_data else "NESSUNO"
+    pdf.cell(0, 12, txt=f"CAPOCANNONIERE PRONOSTICATO: {ts_nome}", ln=1, align='C', fill=True)
+
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     return base64.b64encode(pdf_bytes).decode()
 
