@@ -634,26 +634,26 @@ def get_matchups(ranks, df_terze):
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
-    # MAPPATURA UFFICIALE: Ordinamento sequenziale in base ai rami (Sinistra/Destra)
-    # LATO SINISTRO (Converge alla Semifinale 1)
-    matchups["S1"] = (s_t("A", 1), s_t("B", 1))        # Match 73
-    matchups["S2"] = (s_t("F", 0), s_t("C", 1))        # Match 75
-    matchups["S3"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
-    matchups["S4"] = (s_t("C", 0), s_t("F", 1))        # Match 76
-    matchups["S5"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
-    matchups["S6"] = (s_t("K", 1), s_t("L", 1))        # Match 83
-    matchups["S7"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
-    matchups["S8"] = (s_t("H", 0), s_t("J", 1))        # Match 84
+    # MAPPATURA UFFICIALE 2026: Ordinamento esatto in base ai rami del Bracket Ufficiale (Sinistra/Destra)
+    # LATO SINISTRO (Converge alla Semifinale 1 - Dallas)
+    matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
+    matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
+    matchups["S3"] = (s_t("A", 1), s_t("B", 1))        # Match 73
+    matchups["S4"] = (s_t("F", 0), s_t("C", 1))        # Match 75
+    matchups["S5"] = (s_t("K", 1), s_t("L", 1))        # Match 83
+    matchups["S6"] = (s_t("H", 0), s_t("J", 1))        # Match 84
+    matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
+    matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
 
-    # LATO DESTRO (Converge alla Semifinale 2)
-    matchups["S9"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
-    matchups["S10"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
-    matchups["S11"] = (s_t("E", 1), s_t("I", 1))       # Match 78
+    # LATO DESTRO (Converge alla Semifinale 2 - Atlanta)
+    matchups["S9"] = (s_t("C", 0), s_t("F", 1))        # Match 76
+    matchups["S10"] = (s_t("E", 1), s_t("I", 1))       # Match 78
+    matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
     matchups["S12"] = (s_t("L", 0), t_assigned["1L"])  # Match 80
-    matchups["S13"] = (s_t("B", 0), t_assigned["1B"])  # Match 85
-    matchups["S14"] = (s_t("K", 0), t_assigned["1K"])  # Match 87
-    matchups["S15"] = (s_t("J", 0), s_t("H", 1))       # Match 86
-    matchups["S16"] = (s_t("D", 1), s_t("G", 1))       # Match 88
+    matchups["S13"] = (s_t("J", 0), s_t("H", 1))       # Match 86
+    matchups["S14"] = (s_t("D", 1), s_t("G", 1))       # Match 88
+    matchups["S15"] = (s_t("B", 0), t_assigned["1B"])  # Match 85
+    matchups["S16"] = (s_t("K", 0), t_assigned["1K"])  # Match 87
     
     return matchups
 
