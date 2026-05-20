@@ -634,23 +634,27 @@ def get_matchups(ranks, df_terze):
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
-    # Combinazioni fedeli al PDF FIFA
-    matchups["S1"] = (s_t("A", 1), s_t("B", 1))
-    matchups["S2"] = (s_t("E", 0), t_assigned["1E"])
-    matchups["S3"] = (s_t("F", 0), s_t("C", 1))
-    matchups["S4"] = (s_t("C", 0), s_t("F", 1))
-    matchups["S5"] = (s_t("I", 0), t_assigned["1I"])
-    matchups["S6"] = (s_t("E", 1), s_t("I", 1))
-    matchups["S7"] = (s_t("A", 0), t_assigned["1A"])
-    matchups["S8"] = (s_t("L", 0), t_assigned["1L"])
-    matchups["S9"] = (s_t("D", 0), t_assigned["1D"])
-    matchups["S10"] = (s_t("G", 0), t_assigned["1G"])
-    matchups["S11"] = (s_t("K", 1), s_t("L", 1))
-    matchups["S12"] = (s_t("H", 0), s_t("J", 1))
-    matchups["S13"] = (s_t("B", 0), t_assigned["1B"])
-    matchups["S14"] = (s_t("J", 0), s_t("H", 1))
-    matchups["S15"] = (s_t("K", 0), t_assigned["1K"])
-    matchups["S16"] = (s_t("D", 1), s_t("G", 1))
+    # MAPPATURA UFFICIALE: Ordinamento sequenziale in base ai rami (Sinistra/Destra)
+    # LATO SINISTRO (Converge alla Semifinale 1)
+    matchups["S1"] = (s_t("A", 1), s_t("B", 1))        # Match 73
+    matchups["S2"] = (s_t("F", 0), s_t("C", 1))        # Match 75
+    matchups["S3"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
+    matchups["S4"] = (s_t("C", 0), s_t("F", 1))        # Match 76
+    matchups["S5"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
+    matchups["S6"] = (s_t("K", 1), s_t("L", 1))        # Match 83
+    matchups["S7"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
+    matchups["S8"] = (s_t("H", 0), s_t("J", 1))        # Match 84
+
+    # LATO DESTRO (Converge alla Semifinale 2)
+    matchups["S9"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
+    matchups["S10"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
+    matchups["S11"] = (s_t("E", 1), s_t("I", 1))       # Match 78
+    matchups["S12"] = (s_t("L", 0), t_assigned["1L"])  # Match 80
+    matchups["S13"] = (s_t("B", 0), t_assigned["1B"])  # Match 85
+    matchups["S14"] = (s_t("K", 0), t_assigned["1K"])  # Match 87
+    matchups["S15"] = (s_t("J", 0), s_t("H", 1))       # Match 86
+    matchups["S16"] = (s_t("D", 1), s_t("G", 1))       # Match 88
+    
     return matchups
 
 def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
@@ -697,6 +701,8 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
             
     df_terze_pdf = pd.DataFrame(terze_pdf).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True) if terze_pdf else pd.DataFrame()
     mu = get_matchups(ranks_pdf, df_terze_pdf)
+    
+    # Assegnazione lineare PDF
     mu["O1"] = (bracket_data.get("S1", "TBD"), bracket_data.get("S2", "TBD"))
     mu["O2"] = (bracket_data.get("S3", "TBD"), bracket_data.get("S4", "TBD"))
     mu["O3"] = (bracket_data.get("S5", "TBD"), bracket_data.get("S6", "TBD"))
@@ -705,10 +711,12 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     mu["O6"] = (bracket_data.get("S11", "TBD"), bracket_data.get("S12", "TBD"))
     mu["O7"] = (bracket_data.get("S13", "TBD"), bracket_data.get("S14", "TBD"))
     mu["O8"] = (bracket_data.get("S15", "TBD"), bracket_data.get("S16", "TBD"))
+    
     mu["Q1"] = (bracket_data.get("O1", "TBD"), bracket_data.get("O2", "TBD"))
     mu["Q2"] = (bracket_data.get("O3", "TBD"), bracket_data.get("O4", "TBD"))
     mu["Q3"] = (bracket_data.get("O5", "TBD"), bracket_data.get("O6", "TBD"))
     mu["Q4"] = (bracket_data.get("O7", "TBD"), bracket_data.get("O8", "TBD"))
+    
     mu["SEM1"] = (bracket_data.get("Q1", "TBD"), bracket_data.get("Q2", "TBD"))
     mu["SEM2"] = (bracket_data.get("Q3", "TBD"), bracket_data.get("Q4", "TBD"))
 
@@ -828,12 +836,15 @@ if user or is_admin:
                     st.session_state["O6"] = random.choice([st.session_state["S11"], st.session_state["S12"]])
                     st.session_state["O7"] = random.choice([st.session_state["S13"], st.session_state["S14"]])
                     st.session_state["O8"] = random.choice([st.session_state["S15"], st.session_state["S16"]])
+                    
                     st.session_state["Q1"] = random.choice([st.session_state["O1"], st.session_state["O2"]])
                     st.session_state["Q2"] = random.choice([st.session_state["O3"], st.session_state["O4"]])
                     st.session_state["Q3"] = random.choice([st.session_state["O5"], st.session_state["O6"]])
                     st.session_state["Q4"] = random.choice([st.session_state["O7"], st.session_state["O8"]])
+                    
                     st.session_state["SEM1"] = random.choice([st.session_state["Q1"], st.session_state["Q2"]])
                     st.session_state["SEM2"] = random.choice([st.session_state["Q3"], st.session_state["Q4"]])
+                    
                     st.session_state["WINNER"] = random.choice([st.session_state["SEM1"], st.session_state["SEM2"]])
                     st.rerun()
             with col_b2:
@@ -841,7 +852,7 @@ if user or is_admin:
                     for k in BRACKET_KEYS: st.session_state[k] = "TBD"
                     st.rerun()
             
-            st.info("🎾 **Bracket a Specchio:** Scegli i vincitori cliccando sui bottoni. La progressione confluisce verso la Finale Centrale.")
+            st.info("🎾 **Bracket a Specchio:** Scegli i vincitori cliccando sui bottoni. La progressione confluisce linearmente verso la Finale Centrale.")
             
             # Layout a Specchio 9 Colonne
             c_L1, c_L2, c_L3, c_L4, c_C, c_R4, c_R3, c_R2, c_R1 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1.2, 1.2, 1.2, 1.5])
@@ -996,12 +1007,15 @@ if user or is_admin:
                         st.session_state["adm_O6"] = random.choice([st.session_state["adm_S11"], st.session_state["adm_S12"]])
                         st.session_state["adm_O7"] = random.choice([st.session_state["adm_S13"], st.session_state["adm_S14"]])
                         st.session_state["adm_O8"] = random.choice([st.session_state["adm_S15"], st.session_state["adm_S16"]])
+                        
                         st.session_state["adm_Q1"] = random.choice([st.session_state["adm_O1"], st.session_state["adm_O2"]])
                         st.session_state["adm_Q2"] = random.choice([st.session_state["adm_O3"], st.session_state["adm_O4"]])
                         st.session_state["adm_Q3"] = random.choice([st.session_state["adm_O5"], st.session_state["adm_O6"]])
                         st.session_state["adm_Q4"] = random.choice([st.session_state["adm_O7"], st.session_state["adm_O8"]])
+                        
                         st.session_state["adm_SEM1"] = random.choice([st.session_state["adm_Q1"], st.session_state["adm_Q2"]])
                         st.session_state["adm_SEM2"] = random.choice([st.session_state["adm_Q3"], st.session_state["adm_Q4"]])
+                        
                         st.session_state["adm_WINNER"] = random.choice([st.session_state["adm_SEM1"], st.session_state["adm_SEM2"]])
                         st.rerun()
                 with col_bt2:
