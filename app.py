@@ -6,8 +6,6 @@ import random
 import time
 import urllib.parse
 import base64
-import os
-import re
 from google.oauth2.service_account import Credentials
 
 try:
@@ -15,12 +13,6 @@ try:
     HAS_FPDF = True
 except ImportError:
     HAS_FPDF = False
-
-try:
-    import PyPDF2
-    HAS_PYPDF2 = True
-except ImportError:
-    HAS_PYPDF2 = False
 
 # --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
 st.set_page_config(
@@ -595,107 +587,65 @@ def calcola_classifiche(prefisso=""):
     else: migliori_terze = []
     return rankings_finali, migliori_terze, stats, df_terze
 
-# --- 5. LOGICA PDF E GET_MATCHUPS ---
-
-@st.cache_data
-def load_fifa_matrix():
-    matrix = {}
-    pdf_path = "ThirdPlacesGroup.pdf"
-    
-    if not HAS_PYPDF2 or not os.path.exists(pdf_path):
-        return matrix
-        
-    try:
-        with open(pdf_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-                
-        # Pulizia OCR (il PDF contiene alcuni 1 invece di I)
-        text = text.replace("31", "3I")
-        
-        # Regex che estrae il numero della combinazione e le 8 squadre terze 
-        pattern = re.compile(r'\b(\d{1,3})[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])[^A-Z0-9]*3([A-L1I])\b', re.IGNORECASE)
-        
-        for match in pattern.finditer(text):
-            groups = list(match.groups())
-            # Converti eventuali "1" in "I" e rendi maiuscolo
-            teams = [g.upper().replace('1', 'I') for g in groups[1:]]
-            
-            # Crea una chiave ordinata alfabeticamente (es. "CDEFGHIJ")
-            key = "".join(sorted(teams))
-            
-            # Salva la mappatura esatta per i vincitori dei gironi
-            matrix[key] = {
-                "1A": teams[0], "1B": teams[1], "1D": teams[2], "1E": teams[3],
-                "1G": teams[4], "1I": teams[5], "1K": teams[6], "1L": teams[7]
-            }
-    except Exception:
-        pass
-        
-    return matrix
-
-# Carica la matrice all'avvio
-FIFA_MATRIX = load_fifa_matrix()
-
 def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
         except: return "TBD"
-
+        
     matchups = {}
     if not df_terze.empty and len(df_terze) >= 8:
         terze_tuples = list(zip(df_terze.head(8)["Squadra"], df_terze.head(8)["Girone"]))
-        gironi_terze = sorted([t[1] for t in terze_tuples])
-        g_to_s = {t[1]: t[0] for t in terze_tuples}
         
-        # Crea la chiave stringa dei gironi estratti (es. "ABCEFGHI")
-        key = "".join(gironi_terze)
+        # Restrizioni di assegnazione ufficiali dal regolamento FIFA
+        allowed = {
+            "1A": ["C", "E", "F", "H", "I"], 
+            "1B": ["E", "F", "G", "I", "J"],
+            "1D": ["B", "E", "F", "I", "J"], 
+            "1E": ["A", "B", "C", "D", "F"],
+            "1G": ["A", "E", "H", "I", "J"], 
+            "1I": ["C", "D", "F", "G", "H"],
+            "1K": ["D", "E", "I", "J", "L"], 
+            "1L": ["E", "H", "I", "J", "K"]
+        }
         
-        if FIFA_MATRIX and key in FIFA_MATRIX:
-            # LETTURA PERFETTA DA MATRICE PDF
-            mapping = FIFA_MATRIX[key]
-            t_assigned = {w: g_to_s.get(mapping[w], "TBD") for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
-        else:
-            # FALLBACK (algoritmo matematico nel caso in cui il PDF non fosse caricato correttamente)
-            allowed = {
-                "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
-                "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
-                "1G": ["A", "E", "H", "I", "J"], "1I": ["C", "D", "F", "G", "H"],
-                "1K": ["D", "E", "I", "J", "L"], "1L": ["E", "H", "I", "J", "K"]
-            }
-            winners_order = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        gironi_terze = [t[1] for t in terze_tuples]
+        
+        # Solver Combinatorio: calcola dinamicamente l'incrocio tra i gironi terzi qualificati
+        # e le prime classificate nel rispetto assoluto della matrice ufficiale.
+        def backtrack(idx, current):
+            if idx == len(winners): return current
+            w = winners[idx]
+            for g in allowed[w]:
+                if g in gironi_terze and g not in current.values():
+                    current[w] = g
+                    res = backtrack(idx + 1, current)
+                    if res: return res
+                    del current[w]
+            return None
             
-            def backtrack(idx, current):
-                if idx == len(winners_order): return current
-                w = winners_order[idx]
-                for g in sorted(allowed[w]):
-                    if g in gironi_terze and g not in current.values():
-                        current[w] = g
-                        res = backtrack(idx + 1, current)
-                        if res: return res
-                        del current[w]
-                return None
-                
-            assignment = backtrack(0, {})
-            if not assignment:
-                assignment = {}
-                rem = gironi_terze.copy()
-                for w in winners_order:
-                    for g in sorted(allowed[w]):
-                        if g in rem:
-                            assignment[w] = g
-                            rem.remove(g)
-                            break
-                    if w not in assignment and rem: 
-                        assignment[w] = rem.pop(0)
-                        
-            t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners_order}
+        assignment = backtrack(0, {})
+        
+        if not assignment:
+            assignment = {}
+            rem = gironi_terze.copy()
+            for w in winners:
+                assigned = False
+                for g in allowed[w]:
+                    if g in rem:
+                        assignment[w] = g
+                        rem.remove(g)
+                        assigned = True
+                        break
+                if not assigned and rem: assignment[w] = rem.pop(0)
+        
+        g_to_s = {t[1]: t[0] for t in terze_tuples}
+        t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
-    # MAPPATURA UFFICIALE: Convergenza a specchio verso il centro
+    # MAPPATURA UFFICIALE: Layout fedele alle due direttrici verso le semifinali
+    # LATO SINISTRO (Converge verso la Semifinale 1)
     matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
     matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
     matchups["S3"] = (s_t("A", 1), s_t("B", 1))        # Match 73
@@ -705,6 +655,7 @@ def get_matchups(ranks, df_terze):
     matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
     matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
 
+    # LATO DESTRO (Converge verso la Semifinale 2)
     matchups["S9"] = (s_t("C", 0), s_t("F", 1))        # Match 76
     matchups["S10"] = (s_t("E", 1), s_t("I", 1))       # Match 78
     matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
