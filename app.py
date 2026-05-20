@@ -591,23 +591,34 @@ def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
         except: return "TBD"
-        
+
     matchups = {}
     if not df_terze.empty and len(df_terze) >= 8:
         terze_tuples = list(zip(df_terze.head(8)["Squadra"], df_terze.head(8)["Girone"]))
+        # Estraiamo i gironi di provenienza delle 8 migliori terze
+        gironi_terze = sorted([t[1] for t in terze_tuples])
+
+        # MATRICE DEI VINCOLI FIFA: Definisce esattamente chi può incontrare chi
         allowed = {
-            "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
-            "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
-            "1G": ["A", "E", "H", "I", "J"], "1I": ["C", "D", "F", "G", "H"],
-            "1K": ["D", "E", "I", "J", "L"], "1L": ["E", "H", "I", "J", "K"]
+            "1A": ["C", "E", "F", "H", "I"], 
+            "1B": ["E", "F", "G", "I", "J"],
+            "1D": ["B", "E", "F", "I", "J"], 
+            "1E": ["A", "B", "C", "D", "F"],
+            "1G": ["A", "E", "H", "I", "J"], 
+            "1I": ["C", "D", "F", "G", "H"],
+            "1K": ["D", "E", "I", "J", "L"], 
+            "1L": ["E", "H", "I", "J", "K"]
         }
-        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
-        gironi_terze = [t[1] for t in terze_tuples]
         
+        # Ordine di lettura basato sulle colonne della matrice ufficiale FIFA (Option 1-495)
+        winners_order = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        
+        # Algoritmo che calcola dinamicamente l'incrocio perfetto rispettando il PDF
         def backtrack(idx, current):
-            if idx == len(winners): return current
-            w = winners[idx]
-            for g in allowed[w]:
+            if idx == len(winners_order): 
+                return current
+            w = winners_order[idx]
+            for g in sorted(allowed[w]):
                 if g in gironi_terze and g not in current.values():
                     current[w] = g
                     res = backtrack(idx + 1, current)
@@ -616,26 +627,30 @@ def get_matchups(ranks, df_terze):
             return None
             
         assignment = backtrack(0, {})
+        
+        # Fallback di sicurezza in caso di calcoli in corso con gironi incompleti
         if not assignment:
             assignment = {}
             rem = gironi_terze.copy()
-            for w in winners:
+            for w in winners_order:
                 assigned = False
-                for g in allowed[w]:
+                for g in sorted(allowed[w]):
                     if g in rem:
                         assignment[w] = g
                         rem.remove(g)
                         assigned = True
                         break
-                if not assigned and rem: assignment[w] = rem.pop(0)
+                if not assigned and rem: 
+                    assignment[w] = rem.pop(0)
         
         g_to_s = {t[1]: t[0] for t in terze_tuples}
-        t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
+        t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners_order}
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
     # MAPPATURA UFFICIALE 2026: Ordinamento esatto in base ai rami del Bracket Ufficiale (Sinistra/Destra)
-    # LATO SINISTRO (Converge alla Semifinale 1 - Dallas)
+    
+    # LATO SINISTRO (Converge alla Semifinale 1)
     matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
     matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
     matchups["S3"] = (s_t("A", 1), s_t("B", 1))        # Match 73
@@ -645,7 +660,7 @@ def get_matchups(ranks, df_terze):
     matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
     matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
 
-    # LATO DESTRO (Converge alla Semifinale 2 - Atlanta)
+    # LATO DESTRO (Converge alla Semifinale 2)
     matchups["S9"] = (s_t("C", 0), s_t("F", 1))        # Match 76
     matchups["S10"] = (s_t("E", 1), s_t("I", 1))       # Match 78
     matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
