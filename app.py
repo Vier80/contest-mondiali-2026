@@ -158,13 +158,13 @@ st.markdown("""
     }
     
     .bracket-round-title {
-        font-size: 12px; 
+        font-size: 11px; 
         font-weight: 900; 
         text-transform: uppercase; 
-        letter-spacing: 1.5px;
+        letter-spacing: 1px;
         color: #000; 
         background: #00ff87; 
-        padding: 6px 12px; 
+        padding: 4px 8px; 
         border-radius: 20px;
         text-align: center; 
         display: inline-block; 
@@ -174,12 +174,6 @@ st.markdown("""
 
     div[data-testid="stHorizontalBlock"]:has(.bracket-round-title) { 
         align-items: stretch !important; 
-    }
-    
-    div[data-testid="column"]:has(.bracket-round-title) { 
-        display: flex !important; 
-        flex-direction: column !important; 
-        justify-content: space-around !important; 
     }
     
     /* LOGIN ADMIN SEGRETO */
@@ -209,17 +203,6 @@ st.markdown("""
         div[data-testid="stVerticalBlockBorderControl"] { padding: 10px !important; }
         input[type="number"], input[type="text"] { font-size: 16px !important; height: 38px !important; }
         div.stButton > button { font-size: 12px !important; padding: 2px 5px !important; min-height: 35px !important; }
-        div[data-testid="stVerticalBlockBorderControl"] div[data-testid="stHorizontalBlock"] { 
-            flex-direction: row !important; 
-            flex-wrap: nowrap !important; 
-            align-items: center !important; 
-        }
-        div[data-testid="stVerticalBlockBorderControl"] div[data-testid="column"] { 
-            width: auto !important; 
-            flex: 1 1 0% !important; 
-            min-width: 0 !important; 
-            padding: 0 2px !important; 
-        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -342,17 +325,13 @@ def carica_dati_utente_da_sheets(nick):
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
         
-        try: 
-            ws = sh.worksheet("Pronostici")
-        except: 
-            return False
+        try: ws = sh.worksheet("Pronostici")
+        except: return False
             
         records = ws.get_all_values()
-        
         for row in reversed(records):
             if len(row) >= 2 and row[0].strip().lower() == nick.strip().lower():
                 data = safe_json_parse(row[1])
-                
                 if isinstance(data, dict):
                     gironi_data = data.get("Gironi", data)
                     bracket_data = data.get("Bracket", {})
@@ -365,61 +344,42 @@ def carica_dati_utente_da_sheets(nick):
                             if isinstance(vals, list) and len(vals) >= 2:
                                 h_val = force_int(vals[0])
                                 a_val = force_int(vals[1])
-                                if h_val is not None: 
-                                    st.session_state[f"h_{i}"] = h_val
-                                if a_val is not None: 
-                                    st.session_state[f"a_{i}"] = a_val
+                                if h_val is not None: st.session_state[f"h_{i}"] = h_val
+                                if a_val is not None: st.session_state[f"a_{i}"] = a_val
                                     
                     if isinstance(bracket_data, dict):
                         for k in BRACKET_KEYS:
-                            if k in bracket_data: 
-                                st.session_state[k] = bracket_data[k]
+                            if k in bracket_data: st.session_state[k] = bracket_data[k]
                     return True
         return False
-    except: 
-        return False
+    except: return False
 
 def invia_google_sheets(tab_name, nick, dati):
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
-        
-        try: 
-            ws = sh.worksheet(tab_name)
-        except: 
-            ws = sh.add_worksheet(title=tab_name, rows="1", cols="5")
-            
+        try: ws = sh.worksheet(tab_name)
+        except: ws = sh.add_worksheet(title=tab_name, rows="1", cols="5")
         ws.append_row([nick, json.dumps(dati)])
         return True
-    except Exception: 
-        return False
+    except Exception: return False
 
 def salva_dettaglio_punti_sheets(dettagli_list):
-    if not dettagli_list: 
-        return "Nessun dato da salvare."
+    if not dettagli_list: return "Nessun dato da salvare."
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
-        
-        try: 
-            ws = sh.worksheet("DettaglioPunti")
-        except: 
-            ws = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
-            
+        try: ws = sh.worksheet("DettaglioPunti")
+        except: ws = sh.add_worksheet(title="DettaglioPunti", rows="1", cols="10")
         df_det = pd.DataFrame(dettagli_list).fillna(0)
         dati_matrice = [df_det.columns.tolist()] + df_det.astype(str).values.tolist()
         ws.clear()
-        
-        try: 
-            ws.update("A1", dati_matrice)
+        try: ws.update("A1", dati_matrice)
         except Exception as e1:
-            try: 
-                ws.update(range_name="A1", values=dati_matrice)
-            except Exception as e2:
-                return "API Gspread bloccata."
+            try: ws.update(range_name="A1", values=dati_matrice)
+            except Exception as e2: return "API Gspread bloccata."
         return "OK"
-    except Exception as e: 
-        return f"Errore: {str(e)}"
+    except Exception as e: return f"Errore: {str(e)}"
 
 def carica_dati_paracadute():
     try:
@@ -442,11 +402,9 @@ def carica_dati_paracadute():
                             st.session_state[f"adm_h_{i}"] = force_int(gironi_data[key_str][0])
                             st.session_state[f"adm_a_{i}"] = force_int(gironi_data[key_str][1])
                             
-                    for k, v in bracket_data.items(): 
-                        st.session_state[f"adm_{k}"] = v
+                    for k, v in bracket_data.items(): st.session_state[f"adm_{k}"] = v
                     break
-    except Exception: 
-        pass
+    except Exception: pass
 
 def get_32_qualifiers(gironi_dict):
     stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
@@ -454,10 +412,8 @@ def get_32_qualifiers(gironi_dict):
         key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
         key_num = str(i)
         vals = gironi_dict.get(key_str, gironi_dict.get(key_num))
-        
         if isinstance(vals, list) and len(vals) >= 2:
-            h = force_int(vals[0])
-            a = force_int(vals[1])
+            h = force_int(vals[0]); a = force_int(vals[1])
             if h is not None and a is not None:
                 stats[m['gr']][m['h']]["GF"] += h
                 stats[m['gr']][m['a']]["GF"] += a
@@ -465,40 +421,26 @@ def get_32_qualifiers(gironi_dict):
                 stats[m['gr']][m['a']]["DR"] += (a - h)
                 stats[m['gr']][m['h']]["Played"] += 1
                 stats[m['gr']][m['a']]["Played"] += 1
-                
-                if h > a: 
-                    stats[m['gr']][m['h']]["Pt"] += 3
-                elif a > h: 
-                    stats[m['gr']][m['a']]["Pt"] += 3
-                else: 
-                    stats[m['gr']][m['h']]["Pt"] += 1
-                    stats[m['gr']][m['a']]["Pt"] += 1
+                if h > a: stats[m['gr']][m['h']]["Pt"] += 3
+                elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
+                else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
                     
-    rankings_finali = {}
-    terze_squadre = []
-    
+    rankings_finali = {}; terze_squadre = []
     for g, ts in stats.items():
         df = pd.DataFrame(ts).T
-        if df["Played"].sum() == 0: 
-            rankings_finali[g] = []
+        if df["Played"].sum() == 0: rankings_finali[g] = []
         else:
             df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
             rankings_finali[g] = df.index.tolist()
-            terze_squadre.append({
-                "Squadra": df.index[2], 
-                "Pt": df.iloc[2]["Pt"], 
-                "DR": df.iloc[2]["DR"]
-            })
+            terze_squadre.append({"Squadra": df.index[2], "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"]})
             
     terze_squadre_df = pd.DataFrame(terze_squadre)
     if not terze_squadre_df.empty:
         migliori_terze = terze_squadre_df.sort_values(["Pt", "DR"], ascending=False).head(8)["Squadra"].tolist()
-    else:
-        migliori_terze = []
+    else: migliori_terze = []
         
     top_32 = []
-    for g in rankings_finali: 
-        top_32.extend(rankings_finali[g][:2])
+    for g in rankings_finali: top_32.extend(rankings_finali[g][:2])
     top_32.extend(migliori_terze)
     return top_32
 
@@ -507,25 +449,15 @@ def get_admin_dashboard_data():
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
-        
-        try: 
-            ws_pro = sh.worksheet("Pronostici")
-        except: 
-            return pd.DataFrame(), [], None, []
-            
-        try: 
-            ws_real = sh.worksheet("RisultatiReali")
-        except: 
-            ws_real = None
+        try: ws_pro = sh.worksheet("Pronostici")
+        except: return pd.DataFrame(), [], None, []
+        try: ws_real = sh.worksheet("RisultatiReali")
+        except: ws_real = None
             
         dati_utenti = ws_pro.get_all_values()
-        if not dati_utenti: 
-            return pd.DataFrame(), [], ws_pro, []
+        if not dati_utenti: return pd.DataFrame(), [], ws_pro, []
             
-        reali_dict = {}
-        reali_bracket = {}
-        reali_top_scorer = ""
-        
+        reali_dict = {}; reali_bracket = {}; reali_top_scorer = ""
         if ws_real:
             dati_reali = ws_real.get_all_values()
             for row in reversed(dati_reali):
@@ -542,77 +474,50 @@ def get_admin_dashboard_data():
         adm_8  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("O") and reali_bracket.get(k) not in ["TBD", None]]
         adm_4  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("Q") and reali_bracket.get(k) not in ["TBD", None]]
         adm_2  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("SEM") and reali_bracket.get(k) not in ["TBD", None]]
-        
         adm_win = reali_bracket.get("WINNER") if reali_bracket.get("WINNER") != "TBD" else ""
         adm_fin = [t for t in adm_2 if t != adm_win]
         adm_fin = adm_fin[0] if adm_fin else ""
 
-        classifica = []
-        nomi_utenti = []
-        dettagli_list = []
-        
+        classifica = []; nomi_utenti = []; dettagli_list = []
         for idx, row in enumerate(dati_utenti):
-            if len(row) < 2: 
-                continue
-            
+            if len(row) < 2: continue
             nick = row[0]
             user_data = safe_json_parse(row[1])
-            
-            if not isinstance(user_data, dict): 
-                continue
-                
+            if not isinstance(user_data, dict): continue
             nomi_utenti.append((nick, idx + 1))
             
-            user_gironi = user_data.get("Gironi", user_data)
-            user_bracket = user_data.get("Bracket", {})
-            user_top_scorer = user_data.get("TopScorer", "")
-            
-            punti_tot = 0
-            punti_bonus = 0
-            dettaglio_utente = {"Partecipante": nick}
+            user_gironi = user_data.get("Gironi", user_data); user_bracket = user_data.get("Bracket", {}); user_top_scorer = user_data.get("TopScorer", "")
+            punti_tot = 0; punti_bonus = 0; dettaglio_utente = {"Partecipante": nick}
             
             for i, m in enumerate(MATCHES):
-                key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
-                key_num = str(i)
-                pt_match = 0
-                is_esatto = False
-                
+                key_str = f"G_{m['gr']} {m['h']}-{m['a']}"; key_num = str(i); pt_match = 0; is_esatto = False
                 r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
                 if isinstance(r_vals, list) and len(r_vals) >= 2:
-                    r_h = force_int(r_vals[0])
-                    r_a = force_int(r_vals[1])
+                    r_h = force_int(r_vals[0]); r_a = force_int(r_vals[1])
                     if r_h is not None and r_a is not None:
                         u_vals = user_gironi.get(key_str, user_gironi.get(key_num))
                         u_h, u_a = 0, 0
                         if isinstance(u_vals, list) and len(u_vals) >= 2:
                             if force_int(u_vals[0]) is not None: u_h = force_int(u_vals[0])
                             if force_int(u_vals[1]) is not None: u_a = force_int(u_vals[1])
-                            
                         u_esito = 1 if u_h > u_a else (2 if u_a > u_h else 0)
                         r_esito = 1 if r_h > r_a else (2 if r_a > r_h else 0)
-                        p1 = RANKING.get(m['h'], 0)
-                        p2 = RANKING.get(m['a'], 0)
-                        px = (p1 + p2) // 2
+                        p1 = RANKING.get(m['h'], 0); p2 = RANKING.get(m['a'], 0); px = (p1 + p2) // 2
                         
                         if u_esito == r_esito:
                             if r_esito == 1: pt_match += p1
                             elif r_esito == 2: pt_match += p2
                             else: pt_match += px
-                            
                             if u_h == r_h and u_a == r_a: 
-                                pt_match += 50
-                                punti_bonus += 50
-                                is_esatto = True
+                                pt_match += 50; punti_bonus += 50; is_esatto = True
                                 
-                punti_tot += pt_match
-                dettaglio_utente[key_str] = f"{pt_match} (Esatto)" if is_esatto else pt_match
+                punti_tot += pt_match; dettaglio_utente[key_str] = f"{pt_match} (Esatto)" if is_esatto else pt_match
                 
             usr_32 = get_32_qualifiers(user_gironi) if user_gironi else []
             usr_16 = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("S") and user_bracket.get(k) not in ["TBD", None]]
             usr_8  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("O") and user_bracket.get(k) not in ["TBD", None]]
             usr_4  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("Q") and user_bracket.get(k) not in ["TBD", None]]
             usr_2  = [user_bracket.get(k) for k in BRACKET_KEYS if k.startswith("SEM") and user_bracket.get(k) not in ["TBD", None]]
-            
             usr_win = user_bracket.get("WINNER") if user_bracket.get("WINNER") != "TBD" else ""
             usr_fin = [t for t in usr_2 if t != usr_win]
             usr_fin = usr_fin[0] if usr_fin else ""
@@ -622,7 +527,6 @@ def get_admin_dashboard_data():
             pt_8 = len(set(usr_8) & set(adm_8)) * 50
             pt_4 = len(set(usr_4) & set(adm_4)) * 80
             pt_2 = len(set(usr_2) & set(adm_2)) * 120
-            
             pt_finalista = 180 if usr_fin and adm_fin and usr_fin == adm_fin else 0
             pt_vincitore = 250 if usr_win and adm_win and usr_win == adm_win else 0
             
@@ -631,104 +535,56 @@ def get_admin_dashboard_data():
                 pt_top_scorer = 300
                 
             punti_tot += pt_32 + pt_16 + pt_8 + pt_4 + pt_2 + pt_finalista + pt_vincitore + pt_top_scorer
-            
-            dettaglio_utente.update({
-                "PT_32": pt_32, 
-                "PT_16": pt_16, 
-                "PT_8": pt_8, 
-                "PT_4": pt_4, 
-                "PT_2": pt_2, 
-                "PT_Finalista": pt_finalista, 
-                "PT_Vincitore": pt_vincitore, 
-                "PT_TopScorer": pt_top_scorer, 
-                "Punti Totali": punti_tot, 
-                "Punti Bonus": punti_bonus
-            })
-            
+            dettaglio_utente.update({"PT_32": pt_32, "PT_16": pt_16, "PT_8": pt_8, "PT_4": pt_4, "PT_2": pt_2, "PT_Finalista": pt_finalista, "PT_Vincitore": pt_vincitore, "PT_TopScorer": pt_top_scorer, "Punti Totali": punti_tot, "Punti Bonus": punti_bonus})
             dettagli_list.append(dettaglio_utente)
-            classifica.append({
-                "Partecipante": nick, 
-                "Punti Totali": punti_tot, 
-                "Bonus Esatti": punti_bonus
-            })
+            classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
         df = pd.DataFrame(classifica)
         if not df.empty:
             df = df.groupby('Partecipante', as_index=False).last()
             df = df.sort_values(by=["Punti Totali", "Bonus Esatti"], ascending=[False, False]).reset_index(drop=True)
             df.index += 1
-            
-            df_dettagli = pd.DataFrame(dettagli_list)
-            df_dettagli = df_dettagli.groupby('Partecipante', as_index=False).last()
+            df_dettagli = pd.DataFrame(dettagli_list).groupby('Partecipante', as_index=False).last()
             dettagli_list = df_dettagli.to_dict('records')
             
         return df, nomi_utenti, ws_pro, dettagli_list
-        
-    except Exception as e: 
-        return pd.DataFrame(), [], None, []
+    except Exception as e: return pd.DataFrame(), [], None, []
 
 def elimina_utente(ws, row_index):
-    try: 
-        ws.delete_row(int(row_index))
-        return True
-    except: 
-        return False
+    try: ws.delete_row(int(row_index)); return True
+    except: return False
 
 def calcola_classifiche(prefisso=""):
     stats = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
-    
     for i, m in enumerate(MATCHES):
         h = st.session_state.get(f"{prefisso}h_{i}")
         a = st.session_state.get(f"{prefisso}a_{i}")
-        
-        if h is None or a is None or str(h).strip() == "" or str(a).strip() == "": 
-            continue
-            
+        if h is None or a is None or str(h).strip() == "" or str(a).strip() == "": continue
         h, a = int(h), int(a)
-        stats[m['gr']][m['h']]["GF"] += h
-        stats[m['gr']][m['a']]["GF"] += a
-        stats[m['gr']][m['h']]["DR"] += (h - a)
-        stats[m['gr']][m['a']]["DR"] += (a - h)
-        stats[m['gr']][m['h']]["Played"] += 1
-        stats[m['gr']][m['a']]["Played"] += 1
-        
-        if h > a: 
-            stats[m['gr']][m['h']]["Pt"] += 3
-        elif a > h: 
-            stats[m['gr']][m['a']]["Pt"] += 3
-        else: 
-            stats[m['gr']][m['h']]["Pt"] += 1
-            stats[m['gr']][m['a']]["Pt"] += 1
+        stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
+        stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
+        stats[m['gr']][m['h']]["Played"] += 1; stats[m['gr']][m['a']]["Played"] += 1
+        if h > a: stats[m['gr']][m['h']]["Pt"] += 3
+        elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
+        else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
             
-    rankings_finali = {}
-    terze_squadre = []
-    
+    rankings_finali = {}; terze_squadre = []
     for g, ts in stats.items():
         df = pd.DataFrame(ts).T
-        if df["Played"].sum() == 0: 
-            rankings_finali[g] = []
+        if df["Played"].sum() == 0: rankings_finali[g] = []
         else:
             df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
             rankings_finali[g] = df.index.tolist()
-            terze_squadre.append({
-                "Squadra": df.index[2], 
-                "Girone": g, 
-                "Pt": df.iloc[2]["Pt"], 
-                "DR": df.iloc[2]["DR"], 
-                "GF": df.iloc[2]["GF"]
-            })
+            terze_squadre.append({"Squadra": df.index[2], "Girone": g, "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
             
     if terze_squadre:
         df_terze = pd.DataFrame(terze_squadre).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
-    else:
-        df_terze = pd.DataFrame()
+    else: df_terze = pd.DataFrame()
         
     if not df_terze.empty: 
         df_terze.index += 1
         migliori_terze = df_terze.head(8)["Squadra"].tolist()
-    else: 
-        migliori_terze = []
-        
+    else: migliori_terze = []
     return rankings_finali, migliori_terze, stats, df_terze
 
 def get_matchups(ranks, df_terze):
@@ -740,14 +596,10 @@ def get_matchups(ranks, df_terze):
     if not df_terze.empty and len(df_terze) >= 8:
         terze_tuples = list(zip(df_terze.head(8)["Squadra"], df_terze.head(8)["Girone"]))
         allowed = {
-            "1A": ["C", "E", "F", "H", "I"],
-            "1B": ["E", "F", "G", "I", "J"],
-            "1D": ["B", "E", "F", "I", "J"],
-            "1E": ["A", "B", "C", "D", "F"],
-            "1G": ["A", "E", "H", "I", "J"],
-            "1I": ["C", "D", "F", "G", "H"],
-            "1K": ["D", "E", "I", "J", "L"],
-            "1L": ["E", "H", "I", "J", "K"]
+            "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
+            "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
+            "1G": ["A", "E", "H", "I", "J"], "1I": ["C", "D", "F", "G", "H"],
+            "1K": ["D", "E", "I", "J", "L"], "1L": ["E", "H", "I", "J", "K"]
         }
         winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
         gironi_terze = [t[1] for t in terze_tuples]
@@ -775,14 +627,14 @@ def get_matchups(ranks, df_terze):
                         rem.remove(g)
                         assigned = True
                         break
-                if not assigned and rem:
-                    assignment[w] = rem.pop(0)
+                if not assigned and rem: assignment[w] = rem.pop(0)
         
         g_to_s = {t[1]: t[0] for t in terze_tuples}
         t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
+    # Combinazioni fedeli al PDF FIFA
     matchups["S1"] = (s_t("A", 1), s_t("B", 1))
     matchups["S2"] = (s_t("E", 0), t_assigned["1E"])
     matchups["S3"] = (s_t("F", 0), s_t("C", 1))
@@ -799,245 +651,139 @@ def get_matchups(ranks, df_terze):
     matchups["S14"] = (s_t("J", 0), s_t("H", 1))
     matchups["S15"] = (s_t("K", 0), t_assigned["1K"])
     matchups["S16"] = (s_t("D", 1), s_t("G", 1))
-
     return matchups
 
 def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
-    if not HAS_FPDF: 
-        return None
-        
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # --- HEADER DESIGN ---
-    pdf.set_fill_color(0, 0, 0)
-    pdf.set_text_color(0, 255, 135)
-    pdf.set_font("Arial", 'B', 18)
+    if not HAS_FPDF: return None
+    pdf = FPDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_fill_color(0, 0, 0); pdf.set_text_color(0, 255, 135); pdf.set_font("Arial", 'B', 18)
     pdf.cell(0, 15, txt="FIFA World Cup 2026 Contest", ln=1, align='C', fill=True)
-    
-    pdf.set_fill_color(40, 40, 40)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", 'B', 11)
+    pdf.set_fill_color(40, 40, 40); pdf.set_text_color(255, 255, 255); pdf.set_font("Arial", 'B', 11)
     timestamp = time.strftime("%d/%m/%Y alle %H:%M:%S")
-    pdf.cell(0, 10, txt=f"Pronostici Ufficiali di: {user}   |   Aggiornati il: {timestamp}", ln=1, align='C', fill=True)
-    pdf.ln(8)
-    
-    # --- FASE A GIRONI ---
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_fill_color(230, 230, 230)
-    pdf.cell(0, 10, txt="FASE A GIRONI", ln=1, align='C', fill=True)
-    pdf.ln(5)
-    
+    pdf.cell(0, 10, txt=f"Pronostici Ufficiali di: {user}   |   Aggiornati il: {timestamp}", ln=1, align='C', fill=True); pdf.ln(8)
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'B', 14); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 10, txt="FASE A GIRONI", ln=1, align='C', fill=True); pdf.ln(5)
     y_start_gironi = pdf.get_y()
     for idx, g_name in enumerate(G_TEAMS.keys()):
-        if idx % 2 == 0: 
-            pdf.set_xy(10, y_start_gironi)
-        else: 
-            pdf.set_xy(110, y_start_gironi)
-            
-        pdf.set_font("Arial", 'B', 11)
-        pdf.cell(90, 8, txt=f"GIRONE {g_name}", ln=2, align='C')
-        pdf.set_font("Arial", '', 10)
-        
+        if idx % 2 == 0: pdf.set_xy(10, y_start_gironi)
+        else: pdf.set_xy(110, y_start_gironi)
+        pdf.set_font("Arial", 'B', 11); pdf.cell(90, 8, txt=f"GIRONE {g_name}", ln=2, align='C'); pdf.set_font("Arial", '', 10)
         g_matches = [m for m in MATCHES if m['gr'] == g_name]
         for m in g_matches:
-            key = f"G_{m['gr']} {m['h']}-{m['a']}"
-            scores = gironi_data.get(key, ["-", "-"])
+            key = f"G_{m['gr']} {m['h']}-{m['a']}"; scores = gironi_data.get(key, ["-", "-"])
             pdf.cell(90, 6, txt=f"{m['h']}   {scores[0]} - {scores[1]}   {m['a']}", ln=2, align='C')
+        if idx % 2 != 0: y_start_gironi += 50; pdf.set_y(y_start_gironi)
+        if y_start_gironi > 240 and idx % 2 != 0: pdf.add_page(); y_start_gironi = pdf.get_y()
             
-        if idx % 2 != 0: 
-            y_start_gironi += 50
-            pdf.set_y(y_start_gironi)
-            
-        if y_start_gironi > 240 and idx % 2 != 0: 
-            pdf.add_page()
-            y_start_gironi = pdf.get_y()
-            
-    # --- RICOSTRUZIONE BRACKET PER PDF ---
     stats_pdf = {g: {t: {"Pt": 0, "DR": 0, "GF": 0, "Played": 0} for t in ts} for g, ts in G_TEAMS.items()}
     for i, m in enumerate(MATCHES):
-        key = f"G_{m['gr']} {m['h']}-{m['a']}"
-        v = gironi_data.get(key)
+        key = f"G_{m['gr']} {m['h']}-{m['a']}"; v = gironi_data.get(key)
         if isinstance(v, list) and len(v) == 2 and str(v[0]).isdigit() and str(v[1]).isdigit():
             h, a = int(v[0]), int(v[1])
-            stats_pdf[m['gr']][m['h']]["GF"] += h
-            stats_pdf[m['gr']][m['a']]["GF"] += a
-            stats_pdf[m['gr']][m['h']]["DR"] += (h - a)
-            stats_pdf[m['gr']][m['a']]["DR"] += (a - h)
-            stats_pdf[m['gr']][m['h']]["Played"] += 1
-            stats_pdf[m['gr']][m['a']]["Played"] += 1
-            if h > a: 
-                stats_pdf[m['gr']][m['h']]["Pt"] += 3
-            elif a > h: 
-                stats_pdf[m['gr']][m['a']]["Pt"] += 3
-            else: 
-                stats_pdf[m['gr']][m['h']]["Pt"] += 1
-                stats_pdf[m['gr']][m['a']]["Pt"] += 1
+            stats_pdf[m['gr']][m['h']]["GF"] += h; stats_pdf[m['gr']][m['a']]["GF"] += a
+            stats_pdf[m['gr']][m['h']]["DR"] += (h - a); stats_pdf[m['gr']][m['a']]["DR"] += (a - h)
+            stats_pdf[m['gr']][m['h']]["Played"] += 1; stats_pdf[m['gr']][m['a']]["Played"] += 1
+            if h > a: stats_pdf[m['gr']][m['h']]["Pt"] += 3
+            elif a > h: stats_pdf[m['gr']][m['a']]["Pt"] += 3
+            else: stats_pdf[m['gr']][m['h']]["Pt"] += 1; stats_pdf[m['gr']][m['a']]["Pt"] += 1
                 
-    ranks_pdf = {}
-    terze_pdf = []
-    
+    ranks_pdf = {}; terze_pdf = []
     for g, ts in stats_pdf.items():
         df = pd.DataFrame(ts).T
         if df["Played"].sum() > 0:
-            df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
-            ranks_pdf[g] = df.index.tolist()
-            terze_pdf.append({
-                "Squadra": df.index[2], 
-                "Girone": g,
-                "Pt": df.iloc[2]["Pt"], 
-                "DR": df.iloc[2]["DR"], 
-                "GF": df.iloc[2]["GF"]
-            })
-        else:
-            ranks_pdf[g] = []
+            df = df.sort_values(["Pt", "DR", "GF"], ascending=False); ranks_pdf[g] = df.index.tolist()
+            terze_pdf.append({"Squadra": df.index[2], "Girone": g, "Pt": df.iloc[2]["Pt"], "DR": df.iloc[2]["DR"], "GF": df.iloc[2]["GF"]})
+        else: ranks_pdf[g] = []
             
-    if terze_pdf:
-        df_terze_pdf = pd.DataFrame(terze_pdf).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
-    else:
-        df_terze_pdf = pd.DataFrame()
-        
+    df_terze_pdf = pd.DataFrame(terze_pdf).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True) if terze_pdf else pd.DataFrame()
     mu = get_matchups(ranks_pdf, df_terze_pdf)
-    
-    mu["O1"] = (bracket_data.get("S2", "TBD"), bracket_data.get("S5", "TBD"))
-    mu["O2"] = (bracket_data.get("S1", "TBD"), bracket_data.get("S4", "TBD"))
-    mu["O3"] = (bracket_data.get("S3", "TBD"), bracket_data.get("S6", "TBD"))
+    mu["O1"] = (bracket_data.get("S1", "TBD"), bracket_data.get("S2", "TBD"))
+    mu["O2"] = (bracket_data.get("S3", "TBD"), bracket_data.get("S4", "TBD"))
+    mu["O3"] = (bracket_data.get("S5", "TBD"), bracket_data.get("S6", "TBD"))
     mu["O4"] = (bracket_data.get("S7", "TBD"), bracket_data.get("S8", "TBD"))
-    mu["O5"] = (bracket_data.get("S11", "TBD"), bracket_data.get("S12", "TBD"))
-    mu["O6"] = (bracket_data.get("S9", "TBD"), bracket_data.get("S10", "TBD"))
-    mu["O7"] = (bracket_data.get("S14", "TBD"), bracket_data.get("S16", "TBD"))
-    mu["O8"] = (bracket_data.get("S13", "TBD"), bracket_data.get("S15", "TBD"))
-        
+    mu["O5"] = (bracket_data.get("S9", "TBD"), bracket_data.get("S10", "TBD"))
+    mu["O6"] = (bracket_data.get("S11", "TBD"), bracket_data.get("S12", "TBD"))
+    mu["O7"] = (bracket_data.get("S13", "TBD"), bracket_data.get("S14", "TBD"))
+    mu["O8"] = (bracket_data.get("S15", "TBD"), bracket_data.get("S16", "TBD"))
     mu["Q1"] = (bracket_data.get("O1", "TBD"), bracket_data.get("O2", "TBD"))
-    mu["Q2"] = (bracket_data.get("O5", "TBD"), bracket_data.get("O6", "TBD"))
-    mu["Q3"] = (bracket_data.get("O3", "TBD"), bracket_data.get("O4", "TBD"))
+    mu["Q2"] = (bracket_data.get("O3", "TBD"), bracket_data.get("O4", "TBD"))
+    mu["Q3"] = (bracket_data.get("O5", "TBD"), bracket_data.get("O6", "TBD"))
     mu["Q4"] = (bracket_data.get("O7", "TBD"), bracket_data.get("O8", "TBD"))
-    
     mu["SEM1"] = (bracket_data.get("Q1", "TBD"), bracket_data.get("Q2", "TBD"))
     mu["SEM2"] = (bracket_data.get("Q3", "TBD"), bracket_data.get("Q4", "TBD"))
 
-    # --- FASE A ELIMINAZIONE DIRETTA ---
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_fill_color(230, 230, 230)
-    pdf.cell(0, 10, txt="FASE A ELIMINAZIONE DIRETTA", ln=1, align='C', fill=True)
-    pdf.ln(5)
-    
+    pdf.add_page(); pdf.set_font("Arial", 'B', 14); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 10, txt="FASE A ELIMINAZIONE DIRETTA", ln=1, align='C', fill=True); pdf.ln(5)
     def pr_p(ks, nm):
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, txt=nm, ln=1, align='L')
-        pdf.set_font("Arial", '', 8.5)
-        ys = pdf.get_y()
-        
+        pdf.set_font("Arial", 'B', 12); pdf.cell(0, 8, txt=nm, ln=1, align='L'); pdf.set_font("Arial", '', 8.5); ys = pdf.get_y()
         for i, k in enumerate(ks):
-            if i % 2 == 0: 
-                pdf.set_xy(10, ys)
-            else: 
-                pdf.set_xy(110, ys)
-                ys += 6
-                
-            t1, t2 = mu.get(k, ("TBD", "TBD"))
-            pdf.cell(90, 6, txt=f"[{k}] {t1} vs {t2} -> Vince: {bracket_data.get(k, 'TBD')}", ln=0)
-            
-        if len(ks) % 2 != 0:
-            ys += 6
+            if i % 2 == 0: pdf.set_xy(10, ys)
+            else: pdf.set_xy(110, ys); ys += 6
+            t1, t2 = mu.get(k, ("TBD", "TBD")); pdf.cell(90, 6, txt=f"[{k}] {t1} vs {t2} -> Vince: {bracket_data.get(k, 'TBD')}", ln=0)
+        if len(ks) % 2 != 0: ys += 6
         pdf.set_y(ys + 5)
         
     pr_p([f"S{i}" for i in range(1, 17)], "SEDICESIMI DI FINALE")
     pr_p([f"O{i}" for i in range(1, 9)], "OTTAVI DI FINALE")
     pr_p([f"Q{i}" for i in range(1, 5)], "QUARTI DI FINALE")
     pr_p(["SEM1", "SEM2"], "SEMIFINALI")
-    
-    pdf.ln(5)
-    pdf.set_fill_color(0, 0, 0)
-    pdf.set_text_color(0, 255, 135)
-    pdf.set_font("Arial", 'B', 14)
+    pdf.ln(5); pdf.set_fill_color(0, 0, 0); pdf.set_text_color(0, 255, 135); pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 12, txt=f"VINCITORE: {bracket_data.get('WINNER', 'TBD').upper()}", ln=1, align='C', fill=True)
-    
-    pdf.ln(5)
-    pdf.set_fill_color(40, 40, 40)
-    pdf.set_text_color(255, 255, 255)
+    pdf.ln(5); pdf.set_fill_color(40, 40, 40); pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 12, txt=f"CAPOCANNONIERE: {top_scorer_data.upper() or 'NESSUNO'}", ln=1, align='C', fill=True)
-    
     return base64.b64encode(pdf.output(dest='S').encode('latin1', 'replace')).decode()
 
 # --- 6. INTERFACCIA MAIN ---
 if is_admin and not st.session_state.get("paracadute_attivato"): 
-    carica_dati_paracadute()
-    st.session_state["paracadute_attivato"] = True
+    carica_dati_paracadute(); st.session_state["paracadute_attivato"] = True
 
 col_img1, col_img2, col_img3 = st.columns([1.5, 2, 1.5])
 with col_img2:
-    try: 
-        st.image("logo.png", use_container_width=True)
-    except: 
-        pass
+    try: st.image("logo.png", use_container_width=True)
+    except: pass
 
-st.markdown("""
-<div class='hero-header'>
-    <h1 class='hero-title'>FIFA World Cup 2026 Contest</h1>
-    <p class='hero-subtitle'>Pronostica. Sfida. Domina.</p>
-</div>
-""", unsafe_allow_html=True)
-
+st.markdown("<div class='hero-header'><h1 class='hero-title'>FIFA World Cup 2026 Contest</h1><p class='hero-subtitle'>Pronostica. Sfida. Domina.</p></div>", unsafe_allow_html=True)
 user = ""
 
 if not is_admin:
     if not st.session_state["current_user"]:
-        st.write("<br>", unsafe_allow_html=True)
-        c1, c_nick, c2 = st.columns([1, 1.5, 1])
+        st.write("<br>", unsafe_allow_html=True); c1, c_nick, c2 = st.columns([1, 1.5, 1])
         with c_nick:
             st.markdown("<h4 style='text-align:center; color:#e2e8f0; margin-bottom: 15px;'>Inserisci il tuo Nickname per iniziare</h4>", unsafe_allow_html=True)
             input_user = st.text_input("Nickname:", placeholder="Es. Marco_88", label_visibility="collapsed")
             if input_user:
                 st.session_state["current_user"] = input_user
-                if carica_dati_utente_da_sheets(input_user): 
-                    st.session_state["loaded_previous"] = True
+                if carica_dati_utente_da_sheets(input_user): st.session_state["loaded_previous"] = True
                 st.rerun()
             st.text_input("Admin", type="password", key="admin_auth", label_visibility="collapsed", placeholder="V")
     else:
         user = st.session_state["current_user"]
         st.markdown(f"<div style='text-align: left; color: #00ff87; font-weight: 900; font-size: 1.3rem; margin-top: -20px; margin-bottom: 5px;'>👤 Partecipante: {user}</div>", unsafe_allow_html=True)
         st.warning("⏳ **DEADLINE INVIO PRONOSTICI:** Giovedì 11 giugno ore 20:30 CEST")
-        
         if st.session_state.get("loaded_previous"): 
-            st.success("👋 Bentornato! Dati recuperati con successo.")
-            st.session_state["loaded_previous"] = False
+            st.success("👋 Bentornato! Dati recuperati con successo."); st.session_state["loaded_previous"] = False
 
 if user or is_admin:
-    
-    if is_admin:
-        tab_list = ["👑 Pannello Admin"]
-    else:
-        tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Bracket Completo", "⚽ Top Scorer", "🚀 Invia Pronostici"]
-        
+    if is_admin: tab_list = ["👑 Pannello Admin"]
+    else: tab_list = ["🏟️ Gironi", "📊 Classifiche", "🎾 Tabellone Fase Finale", "⚽ Top Scorer", "🚀 Invia Pronostici"]
     tabs = st.tabs(tab_list)
 
     if not is_admin and user:
-        # --- TAB GIRONI ---
         with tabs[0]: 
             c_btn1, c_btn2, c_btn3 = st.columns([1, 1.5, 1])
             with c_btn2:
                 st.write("<br>", unsafe_allow_html=True)
                 if st.button("🪄 Autocompila Gironi Casualmente", use_container_width=True):
                     for i in range(72): 
-                        st.session_state[f"h_{i}"] = random.randint(0, 4)
-                        st.session_state[f"a_{i}"] = random.randint(0, 4)
+                        st.session_state[f"h_{i}"] = random.randint(0, 4); st.session_state[f"a_{i}"] = random.randint(0, 4)
                     st.rerun()
-            
             st.write("<br>", unsafe_allow_html=True)
-            
             for r in range(18):
                 cols = st.columns(4)
                 for c in range(4):
                     idx = r * 4 + c
                     if idx < 72:
-                        m = MATCHES[idx]
-                        p1 = RANKING[m['h']]
-                        p2 = RANKING[m['a']]
-                        px = (RANKING[m['h']] + RANKING[m['a']]) // 2
+                        m = MATCHES[idx]; p1 = RANKING[m['h']]; p2 = RANKING[m['a']]; px = (RANKING[m['h']] + RANKING[m['a']]) // 2
                         with cols[c]:
                             with st.container(border=True):
                                 st.markdown(f"<div style='text-align:center;'><span class='pts-badge'>1: {p1}pt</span><span class='pts-badge'>X: {px}pt</span><span class='pts-badge'>2: {p2}pt</span></div>", unsafe_allow_html=True)
@@ -1049,77 +795,60 @@ if user or is_admin:
                                 in2.number_input("A", min_value=0, max_value=9, key=f"a_{idx}", label_visibility="collapsed")
                                 c2.markdown(f"<div style='text-align:center; margin-top: 2px;'><img src='{get_flag(m['a'])}' width='48' style='border-radius:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);'><br><span style='font-size:10.5px; font-weight:800; color:#e2e8f0; display:block; margin-top:4px; line-height:1.1;'>{m['a']}</span></div>", unsafe_allow_html=True)
 
-        # --- TAB CLASSIFICHE ---
         with tabs[1]: 
             r_usr, t3_usr, stats_usr, df_terze = calcola_classifiche("")
             for i in range(0, 12, 3):
                 cs = st.columns(3)
                 for k in range(3):
-                    gid = list(G_TEAMS.keys())[i+k]
-                    df = pd.DataFrame(stats_usr[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-                    cs[k].markdown(f"<h4 style='color:#60efff;'>Gruppo {gid}</h4>", unsafe_allow_html=True)
-                    cs[k].dataframe(df, use_container_width=True)
-            st.divider()
-            st.markdown("<h3 style='text-align:center; color:#00ff87;'>Classifica 3° Classificate</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#cbd5e1;'>Solo le prime 8 accedono alla fase ad eliminazione diretta.</p>", unsafe_allow_html=True)
+                    gid = list(G_TEAMS.keys())[i+k]; df = pd.DataFrame(stats_usr[gid]).T.sort_values(["Pt", "DR", "GF"], ascending=False)
+                    cs[k].markdown(f"<h4 style='color:#60efff;'>Gruppo {gid}</h4>", unsafe_allow_html=True); cs[k].dataframe(df, use_container_width=True)
+            st.divider(); st.markdown("<h3 style='text-align:center; color:#00ff87;'>Classifica 3° Classificate</h3><p style='text-align:center; color:#cbd5e1;'>Solo le prime 8 accedono alla fase ad eliminazione diretta.</p>", unsafe_allow_html=True)
             col_t1, col_t2, col_t3 = st.columns([1, 2, 1])
-            with col_t2:
-                st.dataframe(df_terze.style.apply(lambda x: ['background-color: #064e3b; color: #ffffff;' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
+            with col_t2: st.dataframe(df_terze.style.apply(lambda x: ['background-color: #064e3b; color: #ffffff;' if x.name <= 8 else '' for i in x], axis=1), use_container_width=True)
 
-        # --- TAB BRACKET ---
+        # --- TAB BRACKET A SPECCHIO ---
         with tabs[2]: 
             def t_box(t1, t2, mid):
                 with st.container(border=True):
-                    st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>MATCH {mid}</div>", unsafe_allow_html=True)
-                    if st.button(t1, key=f"b1_{mid}", use_container_width=True, type="primary" if st.session_state[mid]==t1 else "secondary"): 
-                        st.session_state[mid]=t1
-                        st.rerun()
-                    if st.button(t2, key=f"b2_{mid}", use_container_width=True, type="primary" if st.session_state[mid]==t2 else "secondary"): 
-                        st.session_state[mid]=t2
-                        st.rerun()
+                    st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>{mid}</div>", unsafe_allow_html=True)
+                    if st.button(t1, key=f"b1_{mid}", use_container_width=True, type="primary" if st.session_state[mid]==t1 else "secondary"): st.session_state[mid]=t1; st.rerun()
+                    if st.button(t2, key=f"b2_{mid}", use_container_width=True, type="primary" if st.session_state[mid]==t2 else "secondary"): st.session_state[mid]=t2; st.rerun()
                 return st.session_state[mid]
-
-            col_b1, col_b2 = st.columns([1, 1])
             
-            ranks_usr, _, _, df_terze_usr = calcola_classifiche("")
-            mu_usr = get_matchups(ranks_usr, df_terze_usr)
-
+            ranks_usr, _, _, df_terze_usr = calcola_classifiche(""); mu_usr = get_matchups(ranks_usr, df_terze_usr)
+            col_b1, col_b2 = st.columns([1, 1])
             with col_b1:
                 if st.button("🪄 Autocompila Bracket Casualmente", use_container_width=True):
-                    for i in range(1, 17):
-                        st.session_state[f"S{i}"] = random.choice([mu_usr[f"S{i}"][0], mu_usr[f"S{i}"][1]])
-                    
-                    st.session_state["O1"] = random.choice([st.session_state["S2"], st.session_state["S5"]])
-                    st.session_state["O2"] = random.choice([st.session_state["S1"], st.session_state["S4"]])
-                    st.session_state["O3"] = random.choice([st.session_state["S3"], st.session_state["S6"]])
+                    for i in range(1, 17): st.session_state[f"S{i}"] = random.choice([mu_usr[f"S{i}"][0], mu_usr[f"S{i}"][1]])
+                    st.session_state["O1"] = random.choice([st.session_state["S1"], st.session_state["S2"]])
+                    st.session_state["O2"] = random.choice([st.session_state["S3"], st.session_state["S4"]])
+                    st.session_state["O3"] = random.choice([st.session_state["S5"], st.session_state["S6"]])
                     st.session_state["O4"] = random.choice([st.session_state["S7"], st.session_state["S8"]])
-                    st.session_state["O5"] = random.choice([st.session_state["S11"], st.session_state["S12"]])
-                    st.session_state["O6"] = random.choice([st.session_state["S9"], st.session_state["S10"]])
-                    st.session_state["O7"] = random.choice([st.session_state["S14"], st.session_state["S16"]])
-                    st.session_state["O8"] = random.choice([st.session_state["S13"], st.session_state["S15"]])
-                    
+                    st.session_state["O5"] = random.choice([st.session_state["S9"], st.session_state["S10"]])
+                    st.session_state["O6"] = random.choice([st.session_state["S11"], st.session_state["S12"]])
+                    st.session_state["O7"] = random.choice([st.session_state["S13"], st.session_state["S14"]])
+                    st.session_state["O8"] = random.choice([st.session_state["S15"], st.session_state["S16"]])
                     st.session_state["Q1"] = random.choice([st.session_state["O1"], st.session_state["O2"]])
-                    st.session_state["Q2"] = random.choice([st.session_state["O5"], st.session_state["O6"]])
-                    st.session_state["Q3"] = random.choice([st.session_state["O3"], st.session_state["O4"]])
+                    st.session_state["Q2"] = random.choice([st.session_state["O3"], st.session_state["O4"]])
+                    st.session_state["Q3"] = random.choice([st.session_state["O5"], st.session_state["O6"]])
                     st.session_state["Q4"] = random.choice([st.session_state["O7"], st.session_state["O8"]])
-                    
                     st.session_state["SEM1"] = random.choice([st.session_state["Q1"], st.session_state["Q2"]])
                     st.session_state["SEM2"] = random.choice([st.session_state["Q3"], st.session_state["Q4"]])
-                    
                     st.session_state["WINNER"] = random.choice([st.session_state["SEM1"], st.session_state["SEM2"]])
                     st.rerun()
-                    
             with col_b2:
                 if st.button("🗑️ Svuota Bracket", use_container_width=True):
-                    for k in BRACKET_KEYS: 
-                        st.session_state[k] = "TBD"
+                    for k in BRACKET_KEYS: st.session_state[k] = "TBD"
                     st.rerun()
             
-            st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
-            c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
+            st.info("🎾 **Bracket a Specchio:** Scegli i vincitori cliccando sui bottoni. La progressione confluisce verso la Finale Centrale.")
             
-            with c_sed:
-                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+            # Layout a Specchio 9 Colonne
+            c_L1, c_L2, c_L3, c_L4, c_C, c_R4, c_R3, c_R2, c_R1 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1.2, 1.2, 1.2, 1.5])
+            
+            # PARTE SINISTRA
+            with c_L1:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
                 s1 = t_box(mu_usr["S1"][0], mu_usr["S1"][1], "S1")
                 s2 = t_box(mu_usr["S2"][0], mu_usr["S2"][1], "S2")
                 s3 = t_box(mu_usr["S3"][0], mu_usr["S3"][1], "S3")
@@ -1128,133 +857,120 @@ if user or is_admin:
                 s6 = t_box(mu_usr["S6"][0], mu_usr["S6"][1], "S6")
                 s7 = t_box(mu_usr["S7"][0], mu_usr["S7"][1], "S7")
                 s8 = t_box(mu_usr["S8"][0], mu_usr["S8"][1], "S8")
-                s9 = t_box(mu_usr["S9"][0], mu_usr["S9"][1], "S9")
-                s10 = t_box(mu_usr["S10"][0], mu_usr["S10"][1], "S10")
-                s11 = t_box(mu_usr["S11"][0], mu_usr["S11"][1], "S11")
-                s12 = t_box(mu_usr["S12"][0], mu_usr["S12"][1], "S12")
-                s13 = t_box(mu_usr["S13"][0], mu_usr["S13"][1], "S13")
-                s14 = t_box(mu_usr["S14"][0], mu_usr["S14"][1], "S14")
-                s15 = t_box(mu_usr["S15"][0], mu_usr["S15"][1], "S15")
-                s16 = t_box(mu_usr["S16"][0], mu_usr["S16"][1], "S16")
-
-            with c_ott:
-                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-                o1 = t_box(s2, s5, "O1")
-                o2 = t_box(s1, s4, "O2")
-                o3 = t_box(s3, s6, "O3")
+            with c_L2:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 55px;'></div>", unsafe_allow_html=True)
+                o1 = t_box(s1, s2, "O1")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                o2 = t_box(s3, s4, "O2")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                o3 = t_box(s5, s6, "O3")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
                 o4 = t_box(s7, s8, "O4")
-                o5 = t_box(s11, s12, "O5")
-                o6 = t_box(s9, s10, "O6")
-                o7 = t_box(s14, s16, "O7")
-                o8 = t_box(s13, s15, "O8")
-
-            with c_qua:
-                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+            with c_L3:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 165px;'></div>", unsafe_allow_html=True)
                 q1 = t_box(o1, o2, "Q1")
-                q2 = t_box(o5, o6, "Q2")
-                q3 = t_box(o3, o4, "Q3")
-                q4 = t_box(o7, o8, "Q4")
-
-            with c_sem:
-                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 220px;'></div>", unsafe_allow_html=True)
+                q2 = t_box(o3, o4, "Q2")
+            with c_L4:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                 sem1 = t_box(q1, q2, "SEM1")
+                
+            # PARTE DESTRA
+            with c_R1:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+                s9 = t_box(mu_usr["S9"][0], mu_usr["S9"][1], "S9")
+                s10= t_box(mu_usr["S10"][0], mu_usr["S10"][1], "S10")
+                s11= t_box(mu_usr["S11"][0], mu_usr["S11"][1], "S11")
+                s12= t_box(mu_usr["S12"][0], mu_usr["S12"][1], "S12")
+                s13= t_box(mu_usr["S13"][0], mu_usr["S13"][1], "S13")
+                s14= t_box(mu_usr["S14"][0], mu_usr["S14"][1], "S14")
+                s15= t_box(mu_usr["S15"][0], mu_usr["S15"][1], "S15")
+                s16= t_box(mu_usr["S16"][0], mu_usr["S16"][1], "S16")
+            with c_R2:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 55px;'></div>", unsafe_allow_html=True)
+                o5 = t_box(s9, s10, "O5")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                o6 = t_box(s11, s12, "O6")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                o7 = t_box(s13, s14, "O7")
+                st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                o8 = t_box(s15, s16, "O8")
+            with c_R3:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 165px;'></div>", unsafe_allow_html=True)
+                q3 = t_box(o5, o6, "Q3")
+                st.markdown("<div style='height: 220px;'></div>", unsafe_allow_html=True)
+                q4 = t_box(o7, o8, "Q4")
+            with c_R4:
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                 sem2 = t_box(q3, q4, "SEM2")
-
-            with c_fin:
-                st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+                
+            # CENTRO FINALE
+            with c_C:
+                st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
                 win = t_box(sem1, sem2, "WINNER")
                 st.session_state["WINNER"] = win
-                
-        # --- TAB TOP SCORER ---
+
         with tabs[3]: 
             st.write("### ⚽ Chi sarà il Capocannoniere?")
             st.markdown("<p style='color: #60efff; font-weight: 600; font-size: 1.1rem;'>Indovina il giocatore che segnerà più gol nel torneo. Se indovini il nome esatto decretato a fine competizione, guadagnerai <b>300 punti</b> bonus!</p>", unsafe_allow_html=True)
             st.session_state["top_scorer"] = st.text_input("Nome del Top Scorer (es. Kylian Mbappé):", value=st.session_state.get("top_scorer", ""))
             
-        # --- TAB INVIA ---
         with tabs[4]: 
             st.write("### 🚀 Manda i Pronostici Ufficiali")
             st.markdown("<p style='color:#cbd5e1;'>Puoi salvare le tue scelte in qualsiasi momento e tornare a completarle o modificarle ricollegandoti con lo stesso Nickname.</p>", unsafe_allow_html=True)
-            
             if st.session_state.get("user_saved_success"): 
-                st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati / aggiornati!")
-                st.session_state["user_saved_success"] = False
-            
+                st.success(f"✅ Ottimo lavoro {user}, i tuoi pronostici sono stati salvati / aggiornati!"); st.session_state["user_saved_success"] = False
             c_snd, c_pdf = st.columns(2)
-            
             with c_snd:
                 if st.button("💾 SALVA / AGGIORNA I TUOI PRONOSTICI", type="primary", use_container_width=True):
                     payload_user = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
-                    payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}
-                    payload_top_scorer = st.session_state.get("top_scorer", "")
-                    timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
-                    
+                    payload_bracket = {k: st.session_state[k] for k in BRACKET_KEYS}; payload_top_scorer = st.session_state.get("top_scorer", ""); timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
                     if invia_google_sheets("Pronostici", user, {"Gironi": payload_user, "Bracket": payload_bracket, "TopScorer": payload_top_scorer, "DataInvio": timestamp}):
-                        st.session_state["user_saved_success"] = True
-                        time.sleep(1)
-                        st.rerun()
-            
+                        st.session_state["user_saved_success"] = True; time.sleep(1); st.rerun()
             with c_pdf:
                 if HAS_FPDF:
                     payload_user_tmp = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state[f"h_{i}"], st.session_state[f"a_{i}"]] for i in range(72)}
                     payload_bracket_tmp = {k: st.session_state[k] for k in BRACKET_KEYS}
                     pdf_b64 = genera_pdf_b64(user, payload_user_tmp, payload_bracket_tmp, st.session_state.get("top_scorer", ""))
-                    
                     if pdf_b64:
                         href = f'<a href="data:application/pdf;base64,{pdf_b64}" download="Pronostici_{user}.pdf" style="text-decoration: none;"><div style="background: linear-gradient(135deg, #00ff87 0%, #3b82f6 100%); color: #000; padding: 7px 10px; text-align: center; border-radius: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(0, 255, 135, 0.3); cursor: pointer; min-height: 35px; line-height: 25px;">📄 SCARICA LE TUE SCELTE IN PDF</div></a>'
                         st.markdown(href, unsafe_allow_html=True)
-                else:
-                    st.info("⚠️ Crea un file 'requirements.txt' con la scritta 'fpdf' per abilitare il download PDF.")
+                else: st.info("⚠️ Crea un file 'requirements.txt' con la scritta 'fpdf' per abilitare il download PDF.")
 
-    # --- ADMIN AREA ---
     if is_admin:
         with tabs[0]:
             st.header("👑 Pannello Admin")
-            if st.session_state.get("admin_saved_success"): 
-                st.success("✅ Risultati e Tabellone salvati con successo!")
-            if st.session_state.get("admin_dettagli_errore"): 
-                st.error(f"❌ Errore Dettaglio Punti: {st.session_state['admin_dettagli_errore']}")
-                st.session_state["admin_dettagli_errore"] = None
+            if st.session_state.get("admin_saved_success"): st.success("✅ Risultati e Tabellone salvati con successo!")
+            if st.session_state.get("admin_dettagli_errore"): st.error(f"❌ Errore Dettaglio Punti: {st.session_state['admin_dettagli_errore']}"); st.session_state["admin_dettagli_errore"] = None
 
-            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale", "🎯 Top Scorer Reale", "🗑️ Reset Dati"])
-            
+            adm_tabs = st.tabs(["📊 Ranking Partecipanti", "⚽ Inserimento Risultati Reali", "🏆 Bracket Reale", "🎯 Top Scorer", "🗑️ Reset Dati"])
             with adm_tabs[0]:
                 st.write("### Classifica Ufficiale")
                 df_ranking, nomi_utenti, ws_pronostici, _ = get_admin_dashboard_data()
-                
                 if not df_ranking.empty:
                     st.dataframe(df_ranking, use_container_width=True)
                     testo_wa = "🏆 *Classifica WC 2026 Contest* 🏆%0A%0A"
-                    for idx, r_data in df_ranking.iterrows():
-                        testo_wa += f"{idx}. {r_data['Partecipante']} - {r_data['Punti Totali']} pt%0A"
-                    st.markdown(f'''
-                    <a href="https://wa.me/?text={testo_wa}" target="_blank" style="text-decoration:none;">
-                        <div style="background-color: #25D366; color: white; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 15px; margin-top: 5px;">
-                            💬 Condividi Classifica su WhatsApp
-                        </div>
-                    </a>
-                    ''', unsafe_allow_html=True)
-                    
-                    st.write("#### Gestione Utenti")
+                    for idx, r_data in df_ranking.iterrows(): testo_wa += f"{idx}. {r_data['Partecipante']} - {r_data['Punti Totali']} pt%0A"
+                    st.markdown(f'''<a href="https://wa.me/?text={testo_wa}" target="_blank" style="text-decoration:none;"><div style="background-color: #25D366; color: white; padding: 10px; text-align: center; border-radius: 8px; font-weight: bold; margin-bottom: 15px; margin-top: 5px;">💬 Condividi Classifica su WhatsApp</div></a>''', unsafe_allow_html=True)
                     col_del1, col_del2 = st.columns([2, 1])
-                    with col_del1: 
-                        utente_da_eliminare = st.selectbox("Seleziona Partecipante", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga: {x[1]})")
+                    with col_del1: utente_da_eliminare = st.selectbox("Seleziona Partecipante", options=nomi_utenti, format_func=lambda x: f"{x[0]} (Riga: {x[1]})")
                     with col_del2:
                         st.write("<br>", unsafe_allow_html=True)
                         if st.button("🗑️ Elimina Utente", type="primary"):
-                            if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]):
-                                get_admin_dashboard_data.clear()
-                                st.rerun()
-                else: 
-                    st.warning("Nessun dato calcolabile.")
+                            if utente_da_eliminare and elimina_utente(ws_pronostici, utente_da_eliminare[1]): get_admin_dashboard_data.clear(); st.rerun()
+                else: st.warning("Nessun dato calcolabile.")
 
             with adm_tabs[1]:
                 if st.button("🪄 Autocompila Reali Casualmente (Test)"):
-                    for i in range(72): 
-                        st.session_state[f"adm_h_{i}"] = random.randint(0, 3)
-                        st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
+                    for i in range(72): st.session_state[f"adm_h_{i}"] = random.randint(0, 3); st.session_state[f"adm_a_{i}"] = random.randint(0, 3)
                     st.rerun()
-                    
                 for r in range(18):
                     cols = st.columns(4)
                     for c in range(4):
@@ -1263,63 +979,50 @@ if user or is_admin:
                             m = MATCHES[idx]
                             with cols[c]:
                                 st.markdown(f"<div class='admin-match-box'><div class='admin-match-title'>G{m['gr']} {m['h']} - {m['a']}</div>", unsafe_allow_html=True)
-                                ci1, ci2 = st.columns(2)
-                                ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed")
-                                ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
+                                ci1, ci2 = st.columns(2); ci1.number_input("H", min_value=0, max_value=9, value=None, key=f"adm_h_{idx}", label_visibility="collapsed"); ci2.number_input("A", min_value=0, max_value=9, value=None, key=f"adm_a_{idx}", label_visibility="collapsed")
                                 st.markdown("</div>", unsafe_allow_html=True)
                         
             with adm_tabs[2]: 
                 col_bt1, col_bt2 = st.columns([1, 1])
-                ranks_adm, _, _, df_terze_adm = calcola_classifiche("adm_")
-                mu_adm = get_matchups(ranks_adm, df_terze_adm)
-                    
+                ranks_adm, _, _, df_terze_adm = calcola_classifiche("adm_"); mu_adm = get_matchups(ranks_adm, df_terze_adm)
                 with col_bt1:
                     if st.button("🪄 Autocompila Bracket (Test)", use_container_width=True):
-                        for i in range(1, 17):
-                            st.session_state[f"adm_S{i}"] = random.choice([mu_adm[f"S{i}"][0], mu_adm[f"S{i}"][1]])
-                            
-                        st.session_state["adm_O1"] = random.choice([st.session_state["adm_S2"], st.session_state["adm_S5"]])
-                        st.session_state["adm_O2"] = random.choice([st.session_state["adm_S1"], st.session_state["adm_S4"]])
-                        st.session_state["adm_O3"] = random.choice([st.session_state["adm_S3"], st.session_state["adm_S6"]])
+                        for i in range(1, 17): st.session_state[f"adm_S{i}"] = random.choice([mu_adm[f"S{i}"][0], mu_adm[f"S{i}"][1]])
+                        st.session_state["adm_O1"] = random.choice([st.session_state["adm_S1"], st.session_state["adm_S2"]])
+                        st.session_state["adm_O2"] = random.choice([st.session_state["adm_S3"], st.session_state["adm_S4"]])
+                        st.session_state["adm_O3"] = random.choice([st.session_state["adm_S5"], st.session_state["adm_S6"]])
                         st.session_state["adm_O4"] = random.choice([st.session_state["adm_S7"], st.session_state["adm_S8"]])
-                        st.session_state["adm_O5"] = random.choice([st.session_state["adm_S11"], st.session_state["adm_S12"]])
-                        st.session_state["adm_O6"] = random.choice([st.session_state["adm_S9"], st.session_state["adm_S10"]])
-                        st.session_state["adm_O7"] = random.choice([st.session_state["adm_S14"], st.session_state["adm_S16"]])
-                        st.session_state["adm_O8"] = random.choice([st.session_state["adm_S13"], st.session_state["adm_S15"]])
-                        
+                        st.session_state["adm_O5"] = random.choice([st.session_state["adm_S9"], st.session_state["adm_S10"]])
+                        st.session_state["adm_O6"] = random.choice([st.session_state["adm_S11"], st.session_state["adm_S12"]])
+                        st.session_state["adm_O7"] = random.choice([st.session_state["adm_S13"], st.session_state["adm_S14"]])
+                        st.session_state["adm_O8"] = random.choice([st.session_state["adm_S15"], st.session_state["adm_S16"]])
                         st.session_state["adm_Q1"] = random.choice([st.session_state["adm_O1"], st.session_state["adm_O2"]])
-                        st.session_state["adm_Q2"] = random.choice([st.session_state["adm_O5"], st.session_state["adm_O6"]])
-                        st.session_state["adm_Q3"] = random.choice([st.session_state["adm_O3"], st.session_state["adm_O4"]])
+                        st.session_state["adm_Q2"] = random.choice([st.session_state["adm_O3"], st.session_state["adm_O4"]])
+                        st.session_state["adm_Q3"] = random.choice([st.session_state["adm_O5"], st.session_state["adm_O6"]])
                         st.session_state["adm_Q4"] = random.choice([st.session_state["adm_O7"], st.session_state["adm_O8"]])
-                        
                         st.session_state["adm_SEM1"] = random.choice([st.session_state["adm_Q1"], st.session_state["adm_Q2"]])
                         st.session_state["adm_SEM2"] = random.choice([st.session_state["adm_Q3"], st.session_state["adm_Q4"]])
-                        
                         st.session_state["adm_WINNER"] = random.choice([st.session_state["adm_SEM1"], st.session_state["adm_SEM2"]])
                         st.rerun()
-                        
                 with col_bt2:
                     if st.button("🗑️ Svuota Bracket", type="primary", use_container_width=True):
-                        for k in BRACKET_KEYS: 
-                            st.session_state["adm_"+k] = "TBD"
+                        for k in BRACKET_KEYS: st.session_state["adm_"+k] = "TBD"
                         st.rerun()
                         
                 def t_box_adm(t1, t2, mid):
                     with st.container(border=True):
-                        st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>MATCH {mid}</div>", unsafe_allow_html=True)
-                        if st.button(t1, key=f"b1_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t1 else "secondary"):
-                            st.session_state["adm_"+mid]=t1
-                            st.rerun()
-                        if st.button(t2, key=f"b2_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t2 else "secondary"):
-                            st.session_state["adm_"+mid]=t2
-                            st.rerun()
+                        st.markdown(f"<div style='font-size:10px; color:#60efff; font-weight:800; text-align:center; margin-bottom:2px;'>{mid}</div>", unsafe_allow_html=True)
+                        if st.button(t1, key=f"b1_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t1 else "secondary"): st.session_state["adm_"+mid]=t1; st.rerun()
+                        if st.button(t2, key=f"b2_adm_{mid}", use_container_width=True, type="primary" if st.session_state["adm_"+mid]==t2 else "secondary"): st.session_state["adm_"+mid]=t2; st.rerun()
                     return st.session_state["adm_"+mid]
 
-                st.info("🎾 **Bracket Mode:** Clicca sul nome della squadra vincitrice in ogni riquadro per farla avanzare.")
-                c_sed, c_ott, c_qua, c_sem, c_fin = st.columns(5)
+                st.info("🎾 **Bracket a Specchio Admin:** Inserisci i risultati definitivi della fase finale.")
                 
-                with c_sed:
-                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+                # Layout Speculare per Admin
+                c_aL1, c_aL2, c_aL3, c_aL4, c_aC, c_aR4, c_aR3, c_aR2, c_aR1 = st.columns([1.5, 1.2, 1.2, 1.2, 1.5, 1.2, 1.2, 1.2, 1.5])
+                
+                with c_aL1:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
                     sa1 = t_box_adm(mu_adm["S1"][0], mu_adm["S1"][1], "S1")
                     sa2 = t_box_adm(mu_adm["S2"][0], mu_adm["S2"][1], "S2")
                     sa3 = t_box_adm(mu_adm["S3"][0], mu_adm["S3"][1], "S3")
@@ -1328,40 +1031,61 @@ if user or is_admin:
                     sa6 = t_box_adm(mu_adm["S6"][0], mu_adm["S6"][1], "S6")
                     sa7 = t_box_adm(mu_adm["S7"][0], mu_adm["S7"][1], "S7")
                     sa8 = t_box_adm(mu_adm["S8"][0], mu_adm["S8"][1], "S8")
-                    sa9 = t_box_adm(mu_adm["S9"][0], mu_adm["S9"][1], "S9")
-                    sa10 = t_box_adm(mu_adm["S10"][0], mu_adm["S10"][1], "S10")
-                    sa11 = t_box_adm(mu_adm["S11"][0], mu_adm["S11"][1], "S11")
-                    sa12 = t_box_adm(mu_adm["S12"][0], mu_adm["S12"][1], "S12")
-                    sa13 = t_box_adm(mu_adm["S13"][0], mu_adm["S13"][1], "S13")
-                    sa14 = t_box_adm(mu_adm["S14"][0], mu_adm["S14"][1], "S14")
-                    sa15 = t_box_adm(mu_adm["S15"][0], mu_adm["S15"][1], "S15")
-                    sa16 = t_box_adm(mu_adm["S16"][0], mu_adm["S16"][1], "S16")
-                    
-                with c_ott:
-                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-                    oa1 = t_box_adm(sa2, sa5, "O1")
-                    oa2 = t_box_adm(sa1, sa4, "O2")
-                    oa3 = t_box_adm(sa3, sa6, "O3")
+                with c_aL2:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 55px;'></div>", unsafe_allow_html=True)
+                    oa1 = t_box_adm(sa1, sa2, "O1")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                    oa2 = t_box_adm(sa3, sa4, "O2")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                    oa3 = t_box_adm(sa5, sa6, "O3")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
                     oa4 = t_box_adm(sa7, sa8, "O4")
-                    oa5 = t_box_adm(sa11, sa12, "O5")
-                    oa6 = t_box_adm(sa9, sa10, "O6")
-                    oa7 = t_box_adm(sa14, sa16, "O7")
-                    oa8 = t_box_adm(sa13, sa15, "O8")
-                    
-                with c_qua:
-                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                with c_aL3:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 165px;'></div>", unsafe_allow_html=True)
                     qa1 = t_box_adm(oa1, oa2, "Q1")
-                    qa2 = t_box_adm(oa5, oa6, "Q2")
-                    qa3 = t_box_adm(oa3, oa4, "Q3")
-                    qa4 = t_box_adm(oa7, oa8, "Q4")
-                    
-                with c_sem:
-                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 220px;'></div>", unsafe_allow_html=True)
+                    qa2 = t_box_adm(oa3, oa4, "Q2")
+                with c_aL4:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                     sema1 = t_box_adm(qa1, qa2, "SEM1")
+                    
+                with c_aR1:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
+                    sa9 = t_box_adm(mu_adm["S9"][0], mu_adm["S9"][1], "S9")
+                    sa10= t_box_adm(mu_adm["S10"][0], mu_adm["S10"][1], "S10")
+                    sa11= t_box_adm(mu_adm["S11"][0], mu_adm["S11"][1], "S11")
+                    sa12= t_box_adm(mu_adm["S12"][0], mu_adm["S12"][1], "S12")
+                    sa13= t_box_adm(mu_adm["S13"][0], mu_adm["S13"][1], "S13")
+                    sa14= t_box_adm(mu_adm["S14"][0], mu_adm["S14"][1], "S14")
+                    sa15= t_box_adm(mu_adm["S15"][0], mu_adm["S15"][1], "S15")
+                    sa16= t_box_adm(mu_adm["S16"][0], mu_adm["S16"][1], "S16")
+                with c_aR2:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 55px;'></div>", unsafe_allow_html=True)
+                    oa5 = t_box_adm(sa9, sa10, "O5")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                    oa6 = t_box_adm(sa11, sa12, "O6")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                    oa7 = t_box_adm(sa13, sa14, "O7")
+                    st.markdown("<div style='height: 110px;'></div>", unsafe_allow_html=True)
+                    oa8 = t_box_adm(sa15, sa16, "O8")
+                with c_aR3:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 165px;'></div>", unsafe_allow_html=True)
+                    qa3 = t_box_adm(oa5, oa6, "Q3")
+                    st.markdown("<div style='height: 220px;'></div>", unsafe_allow_html=True)
+                    qa4 = t_box_adm(oa7, oa8, "Q4")
+                with c_aR4:
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title'>Semi</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                     sema2 = t_box_adm(qa3, qa4, "SEM2")
                     
-                with c_fin:
-                    st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
+                with c_aC:
+                    st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
                     wina = t_box_adm(sema1, sema2, "WINNER")
                     st.session_state["adm_vincitore"] = wina
                     
@@ -1373,27 +1097,17 @@ if user or is_admin:
             with adm_tabs[4]:
                 st.write("### 🗑️ RESET TOTALE")
                 st.error("QUESTA AZIONE È IRREVERSIBILE! Cancellerà tutti i risultati reali inseriti (Gironi, Bracket e Top Scorer) su Google Sheets.")
-                st.warning("Dopo il reset, l'app si ricaricherà e tutti i campi di inserimento per l'admin appariranno vuoti o con 'TBD'.")
                 if st.button("CANCELLA DEFINITIVAMENTE TUTTI I DATI REALI", type="primary", use_container_width=True):
                     if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": {}, "Bracket": {}, "TopScorer": ""}):
-                        get_admin_dashboard_data.clear()
-                        st.success("✅ Dati reali cancellati su Google Sheets. Ricaricamento dell'app per azzerare la memoria locale...")
-                        time.sleep(1.5)
-                        st.rerun()
+                        get_admin_dashboard_data.clear(); st.success("✅ Dati cancellati. Riavvio..."); time.sleep(1.5); st.rerun()
                 
             st.divider()
             if st.button("💾 SALVA TUTTO E AGGIORNA CLASSIFICA", type="primary", use_container_width=True):
                 payload_adm = {f"G_{MATCHES[i]['gr']} {MATCHES[i]['h']}-{MATCHES[i]['a']}": [st.session_state.get(f"adm_h_{i}"), st.session_state.get(f"adm_a_{i}")] for i in range(72)}
                 payload_adm_bracket = {k.replace("adm_", ""): st.session_state[k] for k in [f"adm_{k}" for k in BRACKET_KEYS]}
-                payload_adm_top_scorer = st.session_state.get("adm_top_scorer", "")
-                timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
-                
+                payload_adm_top_scorer = st.session_state.get("adm_top_scorer", ""); timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
                 if invia_google_sheets("RisultatiReali", "ADMIN", {"Gironi": payload_adm, "Bracket": payload_adm_bracket, "TopScorer": payload_adm_top_scorer, "DataAggiornamento": timestamp}):
-                    get_admin_dashboard_data.clear() 
-                    _, _, _, dettagli_list_gs = get_admin_dashboard_data()
-                    esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
+                    get_admin_dashboard_data.clear(); _, _, _, dettagli_list_gs = get_admin_dashboard_data(); esito_dettagli = salva_dettaglio_punti_sheets(dettagli_list_gs)
                     st.session_state["admin_saved_success"] = True
-                    if esito_dettagli != "OK": 
-                        st.session_state["admin_dettagli_errore"] = esito_dettagli
-                    time.sleep(1) 
-                    st.rerun()
+                    if esito_dettagli != "OK": st.session_state["admin_dettagli_errore"] = esito_dettagli
+                    time.sleep(1); st.rerun()
