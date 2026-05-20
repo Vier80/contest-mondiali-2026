@@ -658,7 +658,6 @@ def get_admin_dashboard_data():
             df = df.sort_values(by=["Punti Totali", "Bonus Esatti"], ascending=[False, False]).reset_index(drop=True)
             df.index += 1
             
-            # IL NUOVO RAGGRUPPAMENTO CHE HAI RICHIESTO
             df_dettagli = pd.DataFrame(dettagli_list)
             df_dettagli = df_dettagli.groupby('Partecipante', as_index=False).last()
             dettagli_list = df_dettagli.to_dict('records')
@@ -731,6 +730,77 @@ def calcola_classifiche(prefisso=""):
         migliori_terze = []
         
     return rankings_finali, migliori_terze, stats, df_terze
+
+def get_matchups(ranks, df_terze):
+    def s_t(g, pos):
+        try: return ranks[g][pos]
+        except: return "TBD"
+        
+    matchups = {}
+    if not df_terze.empty and len(df_terze) >= 8:
+        terze_tuples = list(zip(df_terze.head(8)["Squadra"], df_terze.head(8)["Girone"]))
+        allowed = {
+            "1A": ["C", "E", "F", "H", "I"],
+            "1B": ["E", "F", "G", "I", "J"],
+            "1D": ["B", "E", "F", "I", "J"],
+            "1E": ["A", "B", "C", "D", "F"],
+            "1G": ["A", "E", "H", "I", "J"],
+            "1I": ["C", "D", "F", "G", "H"],
+            "1K": ["D", "E", "I", "J", "L"],
+            "1L": ["E", "H", "I", "J", "K"]
+        }
+        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        gironi_terze = [t[1] for t in terze_tuples]
+        
+        def backtrack(idx, current):
+            if idx == len(winners): return current
+            w = winners[idx]
+            for g in allowed[w]:
+                if g in gironi_terze and g not in current.values():
+                    current[w] = g
+                    res = backtrack(idx + 1, current)
+                    if res: return res
+                    del current[w]
+            return None
+            
+        assignment = backtrack(0, {})
+        if not assignment:
+            assignment = {}
+            rem = gironi_terze.copy()
+            for w in winners:
+                assigned = False
+                for g in allowed[w]:
+                    if g in rem:
+                        assignment[w] = g
+                        rem.remove(g)
+                        assigned = True
+                        break
+                if not assigned and rem:
+                    assignment[w] = rem.pop(0)
+        
+        g_to_s = {t[1]: t[0] for t in terze_tuples}
+        t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
+    else:
+        t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
+
+    matchups["S1"] = (s_t("A", 1), s_t("B", 1))
+    matchups["S2"] = (s_t("E", 0), t_assigned["1E"])
+    matchups["S3"] = (s_t("F", 0), s_t("C", 1))
+    matchups["S4"] = (s_t("C", 0), s_t("F", 1))
+    matchups["S5"] = (s_t("I", 0), t_assigned["1I"])
+    matchups["S6"] = (s_t("E", 1), s_t("I", 1))
+    matchups["S7"] = (s_t("A", 0), t_assigned["1A"])
+    matchups["S8"] = (s_t("L", 0), t_assigned["1L"])
+    matchups["S9"] = (s_t("D", 0), t_assigned["1D"])
+    matchups["S10"] = (s_t("G", 0), t_assigned["1G"])
+    matchups["S11"] = (s_t("K", 1), s_t("L", 1))
+    matchups["S12"] = (s_t("H", 0), s_t("J", 1))
+    matchups["S13"] = (s_t("B", 0), t_assigned["1B"])
+    matchups["S14"] = (s_t("J", 0), s_t("H", 1))
+    matchups["S15"] = (s_t("K", 0), t_assigned["1K"])
+    matchups["S16"] = (s_t("D", 1), s_t("G", 1))
+
+    return matchups
 
 def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     if not HAS_FPDF: 
@@ -810,52 +880,43 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     terze_pdf = []
     
     for g, ts in stats_pdf.items():
-        df = pd.DataFrame(ts).T.sort_values(["Pt", "DR", "GF"], ascending=False)
-        ranks_pdf[g] = df.index.tolist()
-        terze_pdf.append({
-            "S": df.index[2], 
-            "P": df.iloc[2]["Pt"], 
-            "D": df.iloc[2]["DR"], 
-            "G": df.iloc[2]["GF"]
-        })
+        df = pd.DataFrame(ts).T
+        if df["Played"].sum() > 0:
+            df = df.sort_values(["Pt", "DR", "GF"], ascending=False)
+            ranks_pdf[g] = df.index.tolist()
+            terze_pdf.append({
+                "Squadra": df.index[2], 
+                "Girone": g,
+                "Pt": df.iloc[2]["Pt"], 
+                "DR": df.iloc[2]["DR"], 
+                "GF": df.iloc[2]["GF"]
+            })
+        else:
+            ranks_pdf[g] = []
+            
+    if terze_pdf:
+        df_terze_pdf = pd.DataFrame(terze_pdf).sort_values(["Pt", "DR", "GF"], ascending=False).reset_index(drop=True)
+    else:
+        df_terze_pdf = pd.DataFrame()
         
-    t_list = pd.DataFrame(terze_pdf).sort_values(["P", "D", "G"], ascending=False)["S"].tolist()
+    mu = get_matchups(ranks_pdf, df_terze_pdf)
     
-    def s_p(g, p): 
-        return ranks_pdf[g][p] if len(ranks_pdf.get(g, [])) > p else "TBD"
+    mu["O1"] = (bracket_data.get("S2", "TBD"), bracket_data.get("S5", "TBD"))
+    mu["O2"] = (bracket_data.get("S1", "TBD"), bracket_data.get("S4", "TBD"))
+    mu["O3"] = (bracket_data.get("S3", "TBD"), bracket_data.get("S6", "TBD"))
+    mu["O4"] = (bracket_data.get("S7", "TBD"), bracket_data.get("S8", "TBD"))
+    mu["O5"] = (bracket_data.get("S11", "TBD"), bracket_data.get("S12", "TBD"))
+    mu["O6"] = (bracket_data.get("S9", "TBD"), bracket_data.get("S10", "TBD"))
+    mu["O7"] = (bracket_data.get("S14", "TBD"), bracket_data.get("S16", "TBD"))
+    mu["O8"] = (bracket_data.get("S13", "TBD"), bracket_data.get("S15", "TBD"))
         
-    def s_t3(i): 
-        return t_list[i] if len(t_list) > i else "TBD"
-        
-    mu = {
-        "S1": (s_p("A",0), s_t3(0)), 
-        "S2": (s_p("B",1), s_p("C",1)), 
-        "S3": (s_p("D",0), s_t3(1)), 
-        "S4": (s_p("E",1), s_p("F",1)), 
-        "S5": (s_p("G",0), s_t3(2)), 
-        "S6": (s_p("H",1), s_p("I",1)), 
-        "S7": (s_p("J",0), s_t3(3)), 
-        "S8": (s_p("K",1), s_p("L",1)), 
-        "S9": (s_p("B",0), s_t3(4)), 
-        "S10": (s_p("E",0), s_p("A",1)), 
-        "S11": (s_p("C",0), s_t3(5)), 
-        "S12": (s_p("F",0), s_p("D",1)), 
-        "S13": (s_p("H",0), s_t3(6)), 
-        "S14": (s_p("K",0), s_p("G",1)), 
-        "S15": (s_p("I",0), s_t3(7)), 
-        "S16": (s_p("L",0), s_p("J",1))
-    }
+    mu["Q1"] = (bracket_data.get("O1", "TBD"), bracket_data.get("O2", "TBD"))
+    mu["Q2"] = (bracket_data.get("O5", "TBD"), bracket_data.get("O6", "TBD"))
+    mu["Q3"] = (bracket_data.get("O3", "TBD"), bracket_data.get("O4", "TBD"))
+    mu["Q4"] = (bracket_data.get("O7", "TBD"), bracket_data.get("O8", "TBD"))
     
-    for k in ["O1","O2","O3","O4","O5","O6","O7","O8"]: 
-        mu[k] = (bracket_data.get(f"S{int(k[1])*2-1}"), bracket_data.get(f"S{int(k[1])*2}"))
-        
-    mu["Q1"] = (bracket_data.get("O1"), bracket_data.get("O2"))
-    mu["Q2"] = (bracket_data.get("O3"), bracket_data.get("O4"))
-    mu["Q3"] = (bracket_data.get("O5"), bracket_data.get("O6"))
-    mu["Q4"] = (bracket_data.get("O7"), bracket_data.get("O8"))
-    
-    mu["SEM1"] = (bracket_data.get("Q1"), bracket_data.get("Q2"))
-    mu["SEM2"] = (bracket_data.get("Q3"), bracket_data.get("Q4"))
+    mu["SEM1"] = (bracket_data.get("Q1", "TBD"), bracket_data.get("Q2", "TBD"))
+    mu["SEM2"] = (bracket_data.get("Q3", "TBD"), bracket_data.get("Q4", "TBD"))
 
     # --- FASE A ELIMINAZIONE DIRETTA ---
     pdf.add_page()
@@ -1020,49 +1081,26 @@ if user or is_admin:
 
             col_b1, col_b2 = st.columns([1, 1])
             
-            def s_t(g, pos):
-                try: 
-                    return r_usr[g][pos]
-                except: 
-                    return "TBD"
-                    
-            def s_t3(index):
-                try: 
-                    return t3_usr[index]
-                except: 
-                    return "TBD"
+            ranks_usr, _, _, df_terze_usr = calcola_classifiche("")
+            mu_usr = get_matchups(ranks_usr, df_terze_usr)
 
             with col_b1:
                 if st.button("🪄 Autocompila Bracket Casualmente", use_container_width=True):
-                    st.session_state["S1"] = random.choice([s_t("A",0), s_t3(0)])
-                    st.session_state["S2"] = random.choice([s_t("B",1), s_t("C",1)])
-                    st.session_state["S3"] = random.choice([s_t("D",0), s_t3(1)])
-                    st.session_state["S4"] = random.choice([s_t("E",1), s_t("F",1)])
-                    st.session_state["S5"] = random.choice([s_t("G",0), s_t3(2)])
-                    st.session_state["S6"] = random.choice([s_t("H",1), s_t("I",1)])
-                    st.session_state["S7"] = random.choice([s_t("J",0), s_t3(3)])
-                    st.session_state["S8"] = random.choice([s_t("K",1), s_t("L",1)])
-                    st.session_state["S9"] = random.choice([s_t("B",0), s_t3(4)])
-                    st.session_state["S10"] = random.choice([s_t("E",0), s_t("A",1)])
-                    st.session_state["S11"] = random.choice([s_t("C",0), s_t3(5)])
-                    st.session_state["S12"] = random.choice([s_t("F",0), s_t("D",1)])
-                    st.session_state["S13"] = random.choice([s_t("H",0), s_t3(6)])
-                    st.session_state["S14"] = random.choice([s_t("K",0), s_t("G",1)])
-                    st.session_state["S15"] = random.choice([s_t("I",0), s_t3(7)])
-                    st.session_state["S16"] = random.choice([s_t("L",0), s_t("J",1)])
+                    for i in range(1, 17):
+                        st.session_state[f"S{i}"] = random.choice([mu_usr[f"S{i}"][0], mu_usr[f"S{i}"][1]])
                     
-                    st.session_state["O1"] = random.choice([st.session_state["S1"], st.session_state["S2"]])
-                    st.session_state["O2"] = random.choice([st.session_state["S3"], st.session_state["S4"]])
-                    st.session_state["O3"] = random.choice([st.session_state["S5"], st.session_state["S6"]])
+                    st.session_state["O1"] = random.choice([st.session_state["S2"], st.session_state["S5"]])
+                    st.session_state["O2"] = random.choice([st.session_state["S1"], st.session_state["S4"]])
+                    st.session_state["O3"] = random.choice([st.session_state["S3"], st.session_state["S6"]])
                     st.session_state["O4"] = random.choice([st.session_state["S7"], st.session_state["S8"]])
-                    st.session_state["O5"] = random.choice([st.session_state["S9"], st.session_state["S10"]])
-                    st.session_state["O6"] = random.choice([st.session_state["S11"], st.session_state["S12"]])
-                    st.session_state["O7"] = random.choice([st.session_state["S13"], st.session_state["S14"]])
-                    st.session_state["O8"] = random.choice([st.session_state["S15"], st.session_state["S16"]])
+                    st.session_state["O5"] = random.choice([st.session_state["S11"], st.session_state["S12"]])
+                    st.session_state["O6"] = random.choice([st.session_state["S9"], st.session_state["S10"]])
+                    st.session_state["O7"] = random.choice([st.session_state["S14"], st.session_state["S16"]])
+                    st.session_state["O8"] = random.choice([st.session_state["S13"], st.session_state["S15"]])
                     
                     st.session_state["Q1"] = random.choice([st.session_state["O1"], st.session_state["O2"]])
-                    st.session_state["Q2"] = random.choice([st.session_state["O3"], st.session_state["O4"]])
-                    st.session_state["Q3"] = random.choice([st.session_state["O5"], st.session_state["O6"]])
+                    st.session_state["Q2"] = random.choice([st.session_state["O5"], st.session_state["O6"]])
+                    st.session_state["Q3"] = random.choice([st.session_state["O3"], st.session_state["O4"]])
                     st.session_state["Q4"] = random.choice([st.session_state["O7"], st.session_state["O8"]])
                     
                     st.session_state["SEM1"] = random.choice([st.session_state["Q1"], st.session_state["Q2"]])
@@ -1082,39 +1120,39 @@ if user or is_admin:
             
             with c_sed:
                 st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
-                s1 = t_box(s_t("A",0), s_t3(0), "S1")
-                s2 = t_box(s_t("B",1), s_t("C",1), "S2")
-                s3 = t_box(s_t("D",0), s_t3(1), "S3")
-                s4 = t_box(s_t("E",1), s_t("F",1), "S4")
-                s5 = t_box(s_t("G",0), s_t3(2), "S5")
-                s6 = t_box(s_t("H",1), s_t("I",1), "S6")
-                s7 = t_box(s_t("J",0), s_t3(3), "S7")
-                s8 = t_box(s_t("K",1), s_t("L",1), "S8")
-                s9 = t_box(s_t("B",0), s_t3(4), "S9")
-                s10 = t_box(s_t("E",0), s_t("A",1), "S10")
-                s11 = t_box(s_t("C",0), s_t3(5), "S11")
-                s12 = t_box(s_t("F",0), s_t("D",1), "S12")
-                s13 = t_box(s_t("H",0), s_t3(6), "S13")
-                s14 = t_box(s_t("K",0), s_t("G",1), "S14")
-                s15 = t_box(s_t("I",0), s_t3(7), "S15")
-                s16 = t_box(s_t("L",0), s_t("J",1), "S16")
+                s1 = t_box(mu_usr["S1"][0], mu_usr["S1"][1], "S1")
+                s2 = t_box(mu_usr["S2"][0], mu_usr["S2"][1], "S2")
+                s3 = t_box(mu_usr["S3"][0], mu_usr["S3"][1], "S3")
+                s4 = t_box(mu_usr["S4"][0], mu_usr["S4"][1], "S4")
+                s5 = t_box(mu_usr["S5"][0], mu_usr["S5"][1], "S5")
+                s6 = t_box(mu_usr["S6"][0], mu_usr["S6"][1], "S6")
+                s7 = t_box(mu_usr["S7"][0], mu_usr["S7"][1], "S7")
+                s8 = t_box(mu_usr["S8"][0], mu_usr["S8"][1], "S8")
+                s9 = t_box(mu_usr["S9"][0], mu_usr["S9"][1], "S9")
+                s10 = t_box(mu_usr["S10"][0], mu_usr["S10"][1], "S10")
+                s11 = t_box(mu_usr["S11"][0], mu_usr["S11"][1], "S11")
+                s12 = t_box(mu_usr["S12"][0], mu_usr["S12"][1], "S12")
+                s13 = t_box(mu_usr["S13"][0], mu_usr["S13"][1], "S13")
+                s14 = t_box(mu_usr["S14"][0], mu_usr["S14"][1], "S14")
+                s15 = t_box(mu_usr["S15"][0], mu_usr["S15"][1], "S15")
+                s16 = t_box(mu_usr["S16"][0], mu_usr["S16"][1], "S16")
 
             with c_ott:
                 st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-                o1 = t_box(s1, s2, "O1")
-                o2 = t_box(s3, s4, "O2")
-                o3 = t_box(s5, s6, "O3")
+                o1 = t_box(s2, s5, "O1")
+                o2 = t_box(s1, s4, "O2")
+                o3 = t_box(s3, s6, "O3")
                 o4 = t_box(s7, s8, "O4")
-                o5 = t_box(s9, s10, "O5")
-                o6 = t_box(s11, s12, "O6")
-                o7 = t_box(s13, s14, "O7")
-                o8 = t_box(s15, s16, "O8")
+                o5 = t_box(s11, s12, "O5")
+                o6 = t_box(s9, s10, "O6")
+                o7 = t_box(s14, s16, "O7")
+                o8 = t_box(s13, s15, "O8")
 
             with c_qua:
                 st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
                 q1 = t_box(o1, o2, "Q1")
-                q2 = t_box(o3, o4, "Q2")
-                q3 = t_box(o5, o6, "Q3")
+                q2 = t_box(o5, o6, "Q2")
+                q3 = t_box(o3, o4, "Q3")
                 q4 = t_box(o7, o8, "Q4")
 
             with c_sem:
@@ -1126,7 +1164,7 @@ if user or is_admin:
                 st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
                 win = t_box(sem1, sem2, "WINNER")
                 st.session_state["WINNER"] = win
-
+                
         # --- TAB TOP SCORER ---
         with tabs[3]: 
             st.write("### ⚽ Chi sarà il Capocannoniere?")
@@ -1232,51 +1270,26 @@ if user or is_admin:
                         
             with adm_tabs[2]: 
                 col_bt1, col_bt2 = st.columns([1, 1])
-                ranks_adm, terze_list_adm, _, _ = calcola_classifiche("adm_")
-                
-                def s_t_adm(g, pos):
-                    try: 
-                        return ranks_adm[g][pos]
-                    except: 
-                        return "TBD"
-                        
-                def s_t3_adm(index):
-                    try: 
-                        return terze_list_adm[index]
-                    except: 
-                        return "TBD"
+                ranks_adm, _, _, df_terze_adm = calcola_classifiche("adm_")
+                mu_adm = get_matchups(ranks_adm, df_terze_adm)
                     
                 with col_bt1:
                     if st.button("🪄 Autocompila Bracket (Test)", use_container_width=True):
-                        st.session_state["adm_S1"] = random.choice([s_t_adm("A",0), s_t3_adm(0)])
-                        st.session_state["adm_S2"] = random.choice([s_t_adm("B",1), s_t_adm("C",1)])
-                        st.session_state["adm_S3"] = random.choice([s_t_adm("D",0), s_t3_adm(1)])
-                        st.session_state["adm_S4"] = random.choice([s_t_adm("E",1), s_t_adm("F",1)])
-                        st.session_state["adm_S5"] = random.choice([s_t_adm("G",0), s_t3_adm(2)])
-                        st.session_state["adm_S6"] = random.choice([s_t_adm("H",1), s_t_adm("I",1)])
-                        st.session_state["adm_S7"] = random.choice([s_t_adm("J",0), s_t3_adm(3)])
-                        st.session_state["adm_S8"] = random.choice([s_t_adm("K",1), s_t_adm("L",1)])
-                        st.session_state["adm_S9"] = random.choice([s_t_adm("B",0), s_t3_adm(4)])
-                        st.session_state["adm_S10"] = random.choice([s_t_adm("E",0), s_t_adm("A",1)])
-                        st.session_state["adm_S11"] = random.choice([s_t_adm("C",0), s_t3_adm(5)])
-                        st.session_state["adm_S12"] = random.choice([s_t_adm("F",0), s_t_adm("D",1)])
-                        st.session_state["adm_S13"] = random.choice([s_t_adm("H",0), s_t3_adm(6)])
-                        st.session_state["adm_S14"] = random.choice([s_t_adm("K",0), s_t_adm("G",1)])
-                        st.session_state["adm_S15"] = random.choice([s_t_adm("I",0), s_t3_adm(7)])
-                        st.session_state["adm_S16"] = random.choice([s_t_adm("L",0), s_t_adm("J",1)])
-                        
-                        st.session_state["adm_O1"] = random.choice([st.session_state["adm_S1"], st.session_state["adm_S2"]])
-                        st.session_state["adm_O2"] = random.choice([st.session_state["adm_S3"], st.session_state["adm_S4"]])
-                        st.session_state["adm_O3"] = random.choice([st.session_state["adm_S5"], st.session_state["adm_S6"]])
+                        for i in range(1, 17):
+                            st.session_state[f"adm_S{i}"] = random.choice([mu_adm[f"S{i}"][0], mu_adm[f"S{i}"][1]])
+                            
+                        st.session_state["adm_O1"] = random.choice([st.session_state["adm_S2"], st.session_state["adm_S5"]])
+                        st.session_state["adm_O2"] = random.choice([st.session_state["adm_S1"], st.session_state["adm_S4"]])
+                        st.session_state["adm_O3"] = random.choice([st.session_state["adm_S3"], st.session_state["adm_S6"]])
                         st.session_state["adm_O4"] = random.choice([st.session_state["adm_S7"], st.session_state["adm_S8"]])
-                        st.session_state["adm_O5"] = random.choice([st.session_state["adm_S9"], st.session_state["adm_S10"]])
-                        st.session_state["adm_O6"] = random.choice([st.session_state["adm_S11"], st.session_state["adm_S12"]])
-                        st.session_state["adm_O7"] = random.choice([st.session_state["adm_S13"], st.session_state["adm_S14"]])
-                        st.session_state["adm_O8"] = random.choice([st.session_state["adm_S15"], st.session_state["adm_S16"]])
+                        st.session_state["adm_O5"] = random.choice([st.session_state["adm_S11"], st.session_state["adm_S12"]])
+                        st.session_state["adm_O6"] = random.choice([st.session_state["adm_S9"], st.session_state["adm_S10"]])
+                        st.session_state["adm_O7"] = random.choice([st.session_state["adm_S14"], st.session_state["adm_S16"]])
+                        st.session_state["adm_O8"] = random.choice([st.session_state["adm_S13"], st.session_state["adm_S15"]])
                         
                         st.session_state["adm_Q1"] = random.choice([st.session_state["adm_O1"], st.session_state["adm_O2"]])
-                        st.session_state["adm_Q2"] = random.choice([st.session_state["adm_O3"], st.session_state["adm_O4"]])
-                        st.session_state["adm_Q3"] = random.choice([st.session_state["adm_O5"], st.session_state["adm_O6"]])
+                        st.session_state["adm_Q2"] = random.choice([st.session_state["adm_O5"], st.session_state["adm_O6"]])
+                        st.session_state["adm_Q3"] = random.choice([st.session_state["adm_O3"], st.session_state["adm_O4"]])
                         st.session_state["adm_Q4"] = random.choice([st.session_state["adm_O7"], st.session_state["adm_O8"]])
                         
                         st.session_state["adm_SEM1"] = random.choice([st.session_state["adm_Q1"], st.session_state["adm_Q2"]])
@@ -1307,39 +1320,39 @@ if user or is_admin:
                 
                 with c_sed:
                     st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Sedicesimi</span></div>", unsafe_allow_html=True)
-                    sa1 = t_box_adm(s_t_adm("A",0), s_t3_adm(0), "S1")
-                    sa2 = t_box_adm(s_t_adm("B",1), s_t_adm("C",1), "S2")
-                    sa3 = t_box_adm(s_t_adm("D",0), s_t3_adm(1), "S3")
-                    sa4 = t_box_adm(s_t_adm("E",1), s_t_adm("F",1), "S4")
-                    sa5 = t_box_adm(s_t_adm("G",0), s_t3_adm(2), "S5")
-                    sa6 = t_box_adm(s_t_adm("H",1), s_t_adm("I",1), "S6")
-                    sa7 = t_box_adm(s_t_adm("J",0), s_t3_adm(3), "S7")
-                    sa8 = t_box_adm(s_t_adm("K",1), s_t_adm("L",1), "S8")
-                    sa9 = t_box_adm(s_t_adm("B",0), s_t3_adm(4), "S9")
-                    sa10= t_box_adm(s_t_adm("E",0), s_t_adm("A",1), "S10")
-                    sa11= t_box_adm(s_t_adm("C",0), s_t3_adm(5), "S11")
-                    sa12= t_box_adm(s_t_adm("F",0), s_t_adm("D",1), "S12")
-                    sa13= t_box_adm(s_t_adm("H",0), s_t3_adm(6), "S13")
-                    sa14= t_box_adm(s_t_adm("K",0), s_t_adm("G",1), "S14")
-                    sa15= t_box_adm(s_t_adm("I",0), s_t3_adm(7), "S15")
-                    sa16= t_box_adm(s_t_adm("L",0), s_t_adm("J",1), "S16")
+                    sa1 = t_box_adm(mu_adm["S1"][0], mu_adm["S1"][1], "S1")
+                    sa2 = t_box_adm(mu_adm["S2"][0], mu_adm["S2"][1], "S2")
+                    sa3 = t_box_adm(mu_adm["S3"][0], mu_adm["S3"][1], "S3")
+                    sa4 = t_box_adm(mu_adm["S4"][0], mu_adm["S4"][1], "S4")
+                    sa5 = t_box_adm(mu_adm["S5"][0], mu_adm["S5"][1], "S5")
+                    sa6 = t_box_adm(mu_adm["S6"][0], mu_adm["S6"][1], "S6")
+                    sa7 = t_box_adm(mu_adm["S7"][0], mu_adm["S7"][1], "S7")
+                    sa8 = t_box_adm(mu_adm["S8"][0], mu_adm["S8"][1], "S8")
+                    sa9 = t_box_adm(mu_adm["S9"][0], mu_adm["S9"][1], "S9")
+                    sa10 = t_box_adm(mu_adm["S10"][0], mu_adm["S10"][1], "S10")
+                    sa11 = t_box_adm(mu_adm["S11"][0], mu_adm["S11"][1], "S11")
+                    sa12 = t_box_adm(mu_adm["S12"][0], mu_adm["S12"][1], "S12")
+                    sa13 = t_box_adm(mu_adm["S13"][0], mu_adm["S13"][1], "S13")
+                    sa14 = t_box_adm(mu_adm["S14"][0], mu_adm["S14"][1], "S14")
+                    sa15 = t_box_adm(mu_adm["S15"][0], mu_adm["S15"][1], "S15")
+                    sa16 = t_box_adm(mu_adm["S16"][0], mu_adm["S16"][1], "S16")
                     
                 with c_ott:
                     st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Ottavi</span></div>", unsafe_allow_html=True)
-                    oa1 = t_box_adm(sa1, sa2, "O1")
-                    oa2 = t_box_adm(sa3, sa4, "O2")
-                    oa3 = t_box_adm(sa5, sa6, "O3")
+                    oa1 = t_box_adm(sa2, sa5, "O1")
+                    oa2 = t_box_adm(sa1, sa4, "O2")
+                    oa3 = t_box_adm(sa3, sa6, "O3")
                     oa4 = t_box_adm(sa7, sa8, "O4")
-                    oa5 = t_box_adm(sa9, sa10, "O5")
-                    oa6 = t_box_adm(sa11, sa12, "O6")
-                    oa7 = t_box_adm(sa13, sa14, "O7")
-                    oa8 = t_box_adm(sa15, sa16, "O8")
+                    oa5 = t_box_adm(sa11, sa12, "O5")
+                    oa6 = t_box_adm(sa9, sa10, "O6")
+                    oa7 = t_box_adm(sa14, sa16, "O7")
+                    oa8 = t_box_adm(sa13, sa15, "O8")
                     
                 with c_qua:
                     st.markdown("<div style='text-align:center; height:30px;'><span class='bracket-round-title'>Quarti</span></div>", unsafe_allow_html=True)
                     qa1 = t_box_adm(oa1, oa2, "Q1")
-                    qa2 = t_box_adm(oa3, oa4, "Q2")
-                    qa3 = t_box_adm(oa5, oa6, "Q3")
+                    qa2 = t_box_adm(oa5, oa6, "Q2")
+                    qa3 = t_box_adm(oa3, oa4, "Q3")
                     qa4 = t_box_adm(oa7, oa8, "Q4")
                     
                 with c_sem:
