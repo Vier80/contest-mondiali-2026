@@ -1,6 +1,6 @@
 streamlit
-gspread
-google-auth
 pandas
-requests
+gspread
 fpdf
+PyPDF2
+google-auth
