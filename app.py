@@ -6,6 +6,7 @@ import random
 import time
 import urllib.parse
 import base64
+import re
 from google.oauth2.service_account import Credentials
 
 try:
@@ -13,6 +14,13 @@ try:
     HAS_FPDF = True
 except ImportError:
     HAS_FPDF = False
+
+# Libreria necessaria per leggere la matrice FIFA "a tavolino"
+try:
+    import PyPDF2
+    HAS_PYPDF2 = True
+except ImportError:
+    HAS_PYPDF2 = False
 
 # --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
 st.set_page_config(
@@ -215,7 +223,7 @@ if "initialized" not in st.session_state:
         st.session_state[f"adm_h_{i}"] = None
         st.session_state[f"adm_a_{i}"] = None  
         
-    for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]:
+    for k in [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "THIRD", "WINNER"]:
         st.session_state[k] = "TBD"
         st.session_state[f"adm_{k}"] = "TBD"
         
@@ -273,7 +281,7 @@ for gid, teams in G_TEAMS.items():
     for h, a in [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]: 
         MATCHES.append({"gr": gid, "h": teams[h], "a": teams[a]})
         
-BRACKET_KEYS = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "WINNER"]
+BRACKET_KEYS = [f"S{i}" for i in range(1,17)] + [f"O{i}" for i in range(1,9)] + [f"Q{i}" for i in range(1,5)] + ["SEM1", "SEM2", "THIRD", "WINNER"]
 
 def get_flag(t):
     if not t or t in ["TBD", "In attesa..."]: 
@@ -477,6 +485,7 @@ def get_admin_dashboard_data():
         adm_win = reali_bracket.get("WINNER") if reali_bracket.get("WINNER") != "TBD" else ""
         adm_fin = [t for t in adm_2 if t != adm_win]
         adm_fin = adm_fin[0] if adm_fin else ""
+        adm_third = reali_bracket.get("THIRD") if reali_bracket.get("THIRD") != "TBD" else ""
 
         classifica = []; nomi_utenti = []; dettagli_list = []
         for idx, row in enumerate(dati_utenti):
@@ -522,6 +531,9 @@ def get_admin_dashboard_data():
             usr_fin = [t for t in usr_2 if t != usr_win]
             usr_fin = usr_fin[0] if usr_fin else ""
             
+            usr_third = user_bracket.get("THIRD") if user_bracket.get("THIRD") != "TBD" else ""
+            pt_terzo = 150 if usr_third and adm_third and usr_third == adm_third else 0
+            
             pt_32 = len(set(usr_32) & set(adm_32)) * 25
             pt_16 = len(set(usr_16) & set(adm_16)) * 35
             pt_8 = len(set(usr_8) & set(adm_8)) * 50
@@ -534,8 +546,8 @@ def get_admin_dashboard_data():
             if reali_top_scorer and user_top_scorer and str(reali_top_scorer).strip().lower() == str(user_top_scorer).strip().lower():
                 pt_top_scorer = 300
                 
-            punti_tot += pt_32 + pt_16 + pt_8 + pt_4 + pt_2 + pt_finalista + pt_vincitore + pt_top_scorer
-            dettaglio_utente.update({"PT_32": pt_32, "PT_16": pt_16, "PT_8": pt_8, "PT_4": pt_4, "PT_2": pt_2, "PT_Finalista": pt_finalista, "PT_Vincitore": pt_vincitore, "PT_TopScorer": pt_top_scorer, "Punti Totali": punti_tot, "Punti Bonus": punti_bonus})
+            punti_tot += pt_32 + pt_16 + pt_8 + pt_4 + pt_2 + pt_finalista + pt_vincitore + pt_terzo + pt_top_scorer
+            dettaglio_utente.update({"PT_32": pt_32, "PT_16": pt_16, "PT_8": pt_8, "PT_4": pt_4, "PT_2": pt_2, "PT_Finalista": pt_finalista, "PT_Vincitore": pt_vincitore, "PT_Terzo": pt_terzo, "PT_TopScorer": pt_top_scorer, "Punti Totali": punti_tot, "Punti Bonus": punti_bonus})
             dettagli_list.append(dettaglio_utente)
             classifica.append({"Partecipante": nick, "Punti Totali": punti_tot, "Bonus Esatti": punti_bonus})
             
@@ -587,6 +599,41 @@ def calcola_classifiche(prefisso=""):
     else: migliori_terze = []
     return rankings_finali, migliori_terze, stats, df_terze
 
+
+# --- FUNZIONE DI LETTURA MATRICE FIFA ---
+@st.cache_data
+def load_fifa_combinations():
+    combinations = {}
+    if not HAS_PYPDF2:
+        return combinations
+        
+    try:
+        # Legge il PDF ufficiale inserito nella cartella
+        reader = PyPDF2.PdfReader("ThirdPlacesGroup.pdf")
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+            
+        # Correzioni tipiche dell'estrazione OCR (es. 3I scambiato per 31 o 11)
+        text = text.replace("31", "3I").replace("11", "1I").replace("1l", "1I")
+        
+        # Regex blindata che estrae: l'opzione (1-495) e i suoi 8 accoppiamenti
+        pattern = re.compile(r'\b(\d{1,3})\b[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])[\s,"]*(3[A-L])\b', re.IGNORECASE)
+        matches = pattern.findall(text)
+        
+        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        for match in matches:
+            terze = [x[1].upper() for x in match[1:]] 
+            # Chiave: le lettere dei gironi qualificate ordinate in ordine alfabetico
+            key = "".join(sorted(terze))
+            combinations[key] = {winners[i]: terze[i] for i in range(8)}
+            
+    except Exception:
+        pass
+        
+    return combinations
+
+
 def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
@@ -595,57 +642,61 @@ def get_matchups(ranks, df_terze):
     matchups = {}
     if not df_terze.empty and len(df_terze) >= 8:
         terze_tuples = list(zip(df_terze.head(8)["Squadra"], df_terze.head(8)["Girone"]))
-        
-        # Restrizioni di assegnazione ufficiali dal regolamento FIFA
-        allowed = {
-            "1A": ["C", "E", "F", "H", "I"], 
-            "1B": ["E", "F", "G", "I", "J"],
-            "1D": ["B", "E", "F", "I", "J"], 
-            "1E": ["A", "B", "C", "D", "F"],
-            "1G": ["A", "E", "H", "I", "J"], 
-            "1I": ["C", "D", "F", "G", "H"],
-            "1K": ["D", "E", "I", "J", "L"], 
-            "1L": ["E", "H", "I", "J", "K"]
-        }
-        
-        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
         gironi_terze = [t[1] for t in terze_tuples]
-        
-        # Solver Combinatorio: calcola dinamicamente l'incrocio tra i gironi terzi qualificati
-        # e le prime classificate nel rispetto assoluto della matrice ufficiale.
-        def backtrack(idx, current):
-            if idx == len(winners): return current
-            w = winners[idx]
-            for g in allowed[w]:
-                if g in gironi_terze and g not in current.values():
-                    current[w] = g
-                    res = backtrack(idx + 1, current)
-                    if res: return res
-                    del current[w]
-            return None
-            
-        assignment = backtrack(0, {})
-        
-        if not assignment:
-            assignment = {}
-            rem = gironi_terze.copy()
-            for w in winners:
-                assigned = False
-                for g in allowed[w]:
-                    if g in rem:
-                        assignment[w] = g
-                        rem.remove(g)
-                        assigned = True
-                        break
-                if not assigned and rem: assignment[w] = rem.pop(0)
-        
         g_to_s = {t[1]: t[0] for t in terze_tuples}
+        winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+        
+        # 1. Caricamento dinamico e applicazione della Matrice Ufficiale FIFA
+        fifa_matrix = load_fifa_combinations()
+        key_terze = "".join(sorted(gironi_terze))
+        
+        if key_terze in fifa_matrix:
+            # Assegnazione "a tavolino" ufficiale e perfetta
+            assignment = fifa_matrix[key_terze]
+        else:
+            # 2. Fallback: Solver in caso manchi il PDF o la lettura fallisca
+            allowed = {
+                "1A": ["C", "E", "F", "H", "I"], 
+                "1B": ["E", "F", "G", "I", "J"],
+                "1D": ["B", "E", "F", "I", "J"], 
+                "1E": ["A", "B", "C", "D", "F"],
+                "1G": ["A", "E", "H", "I", "J"], 
+                "1I": ["C", "D", "F", "G", "H"],
+                "1K": ["D", "E", "I", "J", "L"], 
+                "1L": ["E", "H", "I", "J", "K"]
+            }
+            
+            def backtrack(idx, current):
+                if idx == len(winners): return current
+                w = winners[idx]
+                for g in allowed[w]:
+                    if g in gironi_terze and g not in current.values():
+                        current[w] = g
+                        res = backtrack(idx + 1, current)
+                        if res: return res
+                        del current[w]
+                return None
+                
+            assignment = backtrack(0, {})
+            
+            if not assignment:
+                assignment = {}
+                rem = gironi_terze.copy()
+                for w in winners:
+                    assigned = False
+                    for g in allowed[w]:
+                        if g in rem:
+                            assignment[w] = g
+                            rem.remove(g)
+                            assigned = True
+                            break
+                    if not assigned and rem: assignment[w] = rem.pop(0)
+        
         t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
-    # MAPPATURA UFFICIALE: Layout fedele alle due direttrici verso le semifinali
-    # LATO SINISTRO (Converge verso la Semifinale 1)
+    # MAPPATURA UFFICIALE
     matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
     matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
     matchups["S3"] = (s_t("A", 1), s_t("B", 1))        # Match 73
@@ -655,7 +706,6 @@ def get_matchups(ranks, df_terze):
     matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
     matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
 
-    # LATO DESTRO (Converge verso la Semifinale 2)
     matchups["S9"] = (s_t("C", 0), s_t("F", 1))        # Match 76
     matchups["S10"] = (s_t("E", 1), s_t("I", 1))       # Match 78
     matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
@@ -747,7 +797,11 @@ def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     pr_p(["SEM1", "SEM2"], "SEMIFINALI")
     pdf.ln(5); pdf.set_fill_color(0, 0, 0); pdf.set_text_color(0, 255, 135); pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 12, txt=f"VINCITORE: {bracket_data.get('WINNER', 'TBD').upper()}", ln=1, align='C', fill=True)
-    pdf.ln(5); pdf.set_fill_color(40, 40, 40); pdf.set_text_color(255, 255, 255)
+    pdf.ln(2)
+    pdf.set_fill_color(200, 200, 200); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, txt=f"3° CLASSIFICATO: {bracket_data.get('THIRD', 'TBD').upper()}", ln=1, align='C', fill=True)
+    pdf.ln(5)
+    pdf.set_fill_color(40, 40, 40); pdf.set_text_color(255, 255, 255); pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 12, txt=f"CAPOCANNONIERE: {top_scorer_data.upper() or 'NESSUNO'}", ln=1, align='C', fill=True)
     return base64.b64encode(pdf.output(dest='S').encode('latin1', 'replace')).decode()
 
@@ -856,6 +910,11 @@ if user or is_admin:
                     st.session_state["SEM2"] = random.choice([st.session_state["Q3"], st.session_state["Q4"]])
                     
                     st.session_state["WINNER"] = random.choice([st.session_state["SEM1"], st.session_state["SEM2"]])
+                    
+                    # LOGICA RANDOMICA PER IL TERZO POSTO
+                    l_s1 = st.session_state["Q1"] if st.session_state["SEM1"] == st.session_state["Q2"] else st.session_state["Q2"]
+                    l_s2 = st.session_state["Q3"] if st.session_state["SEM2"] == st.session_state["Q4"] else st.session_state["Q4"]
+                    st.session_state["THIRD"] = random.choice([l_s1, l_s2]) if l_s1 != "TBD" and l_s2 != "TBD" else "TBD"
                     st.rerun()
             with col_b2:
                 if st.button("🗑️ Svuota Bracket", use_container_width=True):
@@ -931,12 +990,20 @@ if user or is_admin:
                 st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                 sem2 = t_box(q3, q4, "SEM2")
                 
-            # CENTRO FINALE
+            # CENTRO FINALE E 3° POSTO
             with c_C:
-                st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height: 310px;'></div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
                 win = t_box(sem1, sem2, "WINNER")
                 st.session_state["WINNER"] = win
+                
+                st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: #cbd5e1; color:#000;'>🥉 3° POSTO</span></div>", unsafe_allow_html=True)
+                # Calcolo dinamico dei perdenti delle Semifinali per lo scontro terzo-quarto posto
+                l_sem1 = q1 if sem1 == q2 else (q2 if sem1 == q1 else "TBD")
+                l_sem2 = q3 if sem2 == q4 else (q4 if sem2 == q3 else "TBD")
+                third = t_box(l_sem1, l_sem2, "THIRD")
+                st.session_state["THIRD"] = third
 
         with tabs[3]: 
             st.write("### ⚽ Chi sarà il Capocannoniere?")
@@ -1027,6 +1094,11 @@ if user or is_admin:
                         st.session_state["adm_SEM2"] = random.choice([st.session_state["adm_Q3"], st.session_state["adm_Q4"]])
                         
                         st.session_state["adm_WINNER"] = random.choice([st.session_state["adm_SEM1"], st.session_state["adm_SEM2"]])
+                        
+                        # LOGICA RANDOMICA PER IL TERZO POSTO ADMIN
+                        l_sa1 = st.session_state["adm_Q1"] if st.session_state["adm_SEM1"] == st.session_state["adm_Q2"] else st.session_state["adm_Q2"]
+                        l_sa2 = st.session_state["adm_Q3"] if st.session_state["adm_SEM2"] == st.session_state["adm_Q4"] else st.session_state["adm_Q4"]
+                        st.session_state["adm_THIRD"] = random.choice([l_sa1, l_sa2]) if l_sa1 != "TBD" and l_sa2 != "TBD" else "TBD"
                         st.rerun()
                 with col_bt2:
                     if st.button("🗑️ Svuota Bracket", type="primary", use_container_width=True):
@@ -1107,11 +1179,19 @@ if user or is_admin:
                     st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
                     sema2 = t_box_adm(qa3, qa4, "SEM2")
                     
+                # CENTRO FINALE E 3° POSTO ADMIN
                 with c_aC:
-                    st.markdown("<div style='height: 385px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 310px;'></div>", unsafe_allow_html=True)
                     st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: linear-gradient(90deg, #00ff87, #60efff); color:#000;'>🏆 FINALE</span></div>", unsafe_allow_html=True)
                     wina = t_box_adm(sema1, sema2, "WINNER")
-                    st.session_state["adm_vincitore"] = wina
+                    st.session_state["adm_WINNER"] = wina
+                    
+                    st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='text-align:center;'><span class='bracket-round-title' style='background: #cbd5e1; color:#000;'>🥉 3° POSTO</span></div>", unsafe_allow_html=True)
+                    l_sema1 = qa1 if sema1 == qa2 else (qa2 if sema1 == qa1 else "TBD")
+                    l_sema2 = qa3 if sema2 == qa4 else (qa4 if sema2 == qa3 else "TBD")
+                    thirda = t_box_adm(l_sema1, l_sema2, "THIRD")
+                    st.session_state["adm_THIRD"] = thirda
                     
             with adm_tabs[3]:
                 st.write("### 🎯 Top Scorer Ufficiale")
