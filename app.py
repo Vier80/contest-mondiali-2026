@@ -623,7 +623,7 @@ def load_fifa_matrix():
         pass
     return matrix_list
 
-# --- FUNZIONE GET_MATCHUPS AGGIORNATA CON LOOKUP CSV E FUZZY MATCH ---
+# --- FUNZIONE GET_MATCHUPS AGGIORNATA CON "SPIA DI DEBUG" ---
 def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
@@ -638,7 +638,6 @@ def get_matchups(ranks, df_terze):
         winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
         t_assigned = {w: "TBD" for w in winners}
         
-        # 1. Tenta il caricamento dal CSV ufficiale e cerca il best match
         matrix_list = load_fifa_matrix()
         target_set = set(gironi_terze)
         best_mapping = None
@@ -651,20 +650,26 @@ def get_matchups(ranks, df_terze):
                     max_overlap = overlap
                     best_mapping = mapping
                 if max_overlap == 8:
-                    break # Match perfetto trovato
+                    break 
         
-        # Se trova una buona corrispondenza nel CSV (almeno 6 squadre su 8 corrispondono)
+        # --- PANNELLO SPIA VISIVO ---
+        stringa_gironi = "".join(sorted(gironi_terze))
+        if best_mapping and max_overlap == 8:
+            st.success(f"✅ **CSV LETTO PERFETTAMENTE!** Trovata l'Opzione esatta per le terze: {stringa_gironi}")
+        elif best_mapping and max_overlap >= 6:
+            st.warning(f"⚠️ **CSV LETTO MA CON BUCHI (Errore OCR):** Trovate solo {max_overlap}/8 squadre per i gironi {stringa_gironi}. L'incrocio potrebbe essere impreciso.")
+        else:
+            st.error(f"🔴 **ATTENZIONE:** Il file CSV NON è stato letto o non contiene dati validi per i gironi {stringa_gironi}. Algoritmo di emergenza attivato.")
+        # -----------------------------
+
         if best_mapping and max_overlap >= 6:
             assigned_teams = set()
-            
-            # Passo A: Assegna i gironi letti correttamente dal CSV
             for w in winners:
                 if w in best_mapping and best_mapping[w] in target_set:
                     t_letter = best_mapping[w]
                     t_assigned[w] = g_to_s.get(t_letter, "TBD")
                     assigned_teams.add(t_letter)
             
-            # Passo B: Ripara eventuali buchi del CSV (celle NaN dovute a difetti di estrazione)
             missing_letters = list(target_set - assigned_teams)
             missing_columns = [w for w in winners if t_assigned[w] == "TBD"]
             
@@ -672,8 +677,6 @@ def get_matchups(ranks, df_terze):
                 t_assigned[missing_columns[i]] = g_to_s.get(missing_letters[i], "TBD")
                 
         else:
-            # 2. Fallback d'emergenza: Constraint Solver originale 
-            # (Si attiva solo se il CSV non c'è, è rinominato male, o è completamente vuoto)
             allowed = {
                 "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
                 "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
@@ -709,30 +712,25 @@ def get_matchups(ranks, df_terze):
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
-    # MAPPATURA UFFICIALE: Layout fedele alle due direttrici verso le semifinali
-    # LATO SINISTRO (Converge verso la Semifinale 1)
-    matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   # Match 74
-    matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   # Match 77
-    matchups["S3"] = (s_t("A", 1), s_t("B", 1))        # Match 73
-    matchups["S4"] = (s_t("F", 0), s_t("C", 1))        # Match 75
-    matchups["S5"] = (s_t("K", 1), s_t("L", 1))        # Match 83
-    matchups["S6"] = (s_t("H", 0), s_t("J", 1))        # Match 84
-    matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   # Match 81
-    matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   # Match 82
-
-    # LATO DESTRO (Converge verso la Semifinale 2)
-    matchups["S9"] = (s_t("C", 0), s_t("F", 1))        # Match 76
-    matchups["S10"] = (s_t("E", 1), s_t("I", 1))       # Match 78
-    matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  # Match 79
-    matchups["S12"] = (s_t("L", 0), t_assigned["1L"])  # Match 80
-    matchups["S13"] = (s_t("J", 0), s_t("H", 1))       # Match 86
-    matchups["S14"] = (s_t("D", 1), s_t("G", 1))       # Match 88
-    matchups["S15"] = (s_t("B", 0), t_assigned["1B"])  # Match 85
-    matchups["S16"] = (s_t("K", 0), t_assigned["1K"])  # Match 87
+    matchups["S1"] = (s_t("E", 0), t_assigned["1E"])   
+    matchups["S2"] = (s_t("I", 0), t_assigned["1I"])   
+    matchups["S3"] = (s_t("A", 1), s_t("B", 1))        
+    matchups["S4"] = (s_t("F", 0), s_t("C", 1))        
+    matchups["S5"] = (s_t("K", 1), s_t("L", 1))        
+    matchups["S6"] = (s_t("H", 0), s_t("J", 1))        
+    matchups["S7"] = (s_t("D", 0), t_assigned["1D"])   
+    matchups["S8"] = (s_t("G", 0), t_assigned["1G"])   
+    matchups["S9"] = (s_t("C", 0), s_t("F", 1))        
+    matchups["S10"] = (s_t("E", 1), s_t("I", 1))       
+    matchups["S11"] = (s_t("A", 0), t_assigned["1A"])  
+    matchups["S12"] = (s_t("L", 0), t_assigned["1L"])  
+    matchups["S13"] = (s_t("J", 0), s_t("H", 1))       
+    matchups["S14"] = (s_t("D", 1), s_t("G", 1))       
+    matchups["S15"] = (s_t("B", 0), t_assigned["1B"])  
+    matchups["S16"] = (s_t("K", 0), t_assigned["1K"])  
     
     return matchups
-
-def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
+    def genera_pdf_b64(user, gironi_data, bracket_data, top_scorer_data):
     if not HAS_FPDF: return None
     pdf = FPDF(); pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_fill_color(0, 0, 0); pdf.set_text_color(0, 255, 135); pdf.set_font("Arial", 'B', 18)
