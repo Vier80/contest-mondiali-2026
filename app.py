@@ -353,7 +353,6 @@ def carica_dati_utente_da_sheets(nick):
                     return True
         return False
     except: return False
-
 def invia_google_sheets(tab_name, nick, dati):
     try:
         gc = get_gspread_client()
