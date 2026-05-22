@@ -14,7 +14,20 @@ try:
 except ImportError:
     HAS_FPDF = False
 
-# --- 1. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
+# --- 1. MATRICE FIFA HARDCODED (Sostituisce il CSV e risolve 495 combinazioni) ---
+COMPRESSED_FIFA_MATRIX = "ABCDEFGH:HGBCAFDE,ABCDEFGI:CGBDAFEI,ABCDEFGJ:CGBDAFEJ,ABCDEFGK:CGBDAFEK,ABCDEFGL:CGBDAFLE,ABCDEFHI:HEBCAFDI,ABCDEFHJ:HJBCAFDE,ABCDEFHK:HEBCAFDK,ABCDEFHL:HFBCADLE,ABCDEFIJ:CJBDAFEI,ABCDEFIK:CEBDAFIK,ABCDEFIL:CEBDAFLI,ABCDEFJK:CJBDAFEK,ABCDEFJL:CJBDAFLE,ABCDEFKL:CEBDAFLK,ABCDEGHI:HGBCADEI,ABCDEGHJ:HGBCADEJ,ABCDEGHK:HGBCADEK,ABCDEGHL:HGBCADLE,ABCDEGIJ:EGBCADIJ,ABCDEGIK:EGBCADIK,ABCDEGIL:EGBCADLI,ABCDEGJK:EGBCADJK,ABCDEGJL:EGBCADLJ,ABCDEGKL:EGBCADLK,ABCDEHIJ:HJBCADEI,ABCDEHIK:HEBCADIK,ABCDEHIL:HEBCADLI,ABCDEHJK:HJBCADEK,ABCDEHJL:HJBCADLE,ABCDEHKL:HEBCADLK,ABCDEIJK:EJBCADIK,ABCDEIJL:EJBCADLI,ABCDEIKL:EIBCADLK,ABCDEJKL:EJBCADLK,ABCDFGHI:HGBCAFDI,ABCDFGHJ:HGBCAFDJ,ABCDFGHK:HGBCAFDK,ABCDFGHL:CGBDAFLH,ABCDFGIJ:CGBDAFIJ,ABCDFGIK:CGBDAFIK,ABCDFGIL:CGBDAFLI,ABCDFGJK:CGBDAFJK,ABCDFGJL:CGBDAFLJ,ABCDFGKL:CGBDAFLK,ABCDFHIJ:HJBCAFDI,ABCDFHIK:HFBCADIK,ABCDFHIL:HFBCADLI,ABCDFHJK:HJBCAFDK,ABCDFHJL:CJBDAFLH,ABCDFHKL:HFBCADLK,ABCDFIJK:CJBDAFIK,ABCDFIJL:CJBDAFLI,ABCDFIKL:CIBDAFLK,ABCDFJKL:CJBDAFLK,ABCDGHIJ:HGBCADIJ,ABCDGHIK:HGBCADIK,ABCDGHIL:HGBCADLI,ABCDGHJK:HGBCADJK,ABCDGHJL:HGBCADLJ,ABCDGHKL:HGBCADLK,ABCDGIJK:CJBDAGIK,ABCDGIJL:CJBDAGLI,ABCDGIKL:IGBCADLK,ABCDGJKL:CJBDAGLK,ABCDHIJK:HJBCADIK,ABCDHIJL:HJBCADLI,ABCDHIKL:HIBCADLK,ABCDHJKL:HJBCADLK,ABCDIJKL:IJBCADLK,ABCEFGHI:HGBCAFEI,ABCEFGHJ:HGBCAFEJ,ABCEFGHK:HGBCAFEK,ABCEFGHL:HGBCAFLE,ABCEFGIJ:EGBCAFIJ,ABCEFGIK:EGBCAFIK,ABCEFGIL:EGBCAFLI,ABCEFGJK:EGBCAFJK,ABCEFGJL:EGBCAFLJ,ABCEFGKL:EGBCAFLK,ABCEFHIJ:HJBCAFEI,ABCEFHIK:HEBCAFIK,ABCEFHIL:HEBCAFLI,ABCEFHJK:HJBCAFEK,ABCEFHJL:HJBCAFLE,ABCEFHKL:HEBCAFLK,ABCEFIJK:EJBCAFIK,ABCEFIJL:EJBCAFLI,ABCEFIKL:EIBCAFLK,ABCEFJKL:EJBCAFLK,ABCEGHIJ:HJBCAGEI,ABCEGHIK:EGBCAHIK,ABCEGHIL:EGBCAHLI,ABCEGHJK:HJBCAGEK,ABCEGHJL:HJBCAGLE,ABCEGHKL:EGBCAHLK,ABCEGIJK:EJBCAGIK,ABCEGIJL:EJBCAGLI,ABCEGIKL:EGBAICLK,ABCEGJKL:EJBCAGLK,ABCEHIJK:EJBCAHIK,ABCEHIJL:EJBCAHLI,ABCEHIKL:EIBCAHLK,ABCEHJKL:EJBCAHLK,ABCEIJKL:EJBAICLK,ABCFGHIJ:HGBCAFIJ,ABCFGHIK:HGBCAFIK,ABCFGHIL:HGBCAFLI,ABCFGHJK:HGBCAFJK,ABCFGHJL:HGBCAFLJ,ABCFGHKL:HGBCAFLK,ABCFGIJK:CJBFAGIK,ABCFGIJL:CJBFAGLI,ABCFGIKL:IGBCAFLK,ABCFGJKL:CJBFAGLK,ABCFHIJK:HJBCAFIK,ABCFHIJL:HJBCAFLI,ABCFHIKL:HIBCAFLK,ABCFHJKL:HJBCAFLK,ABCFIJKL:IJBCAFLK,ABCGHIJK:HJBCAGIK,ABCGHIJL:HJBCAGLI,ABCGHIKL:IGBCAHLK,ABCGHJKL:HJBCAGLK,ABCGIJKL:IJBCAGLK,ABCHIJKL:IJBCAHLK,ABDEFGHI:HGBDAFEI,ABDEFGHJ:HGBDAFEJ,ABDEFGHK:HGBDAFEK,ABDEFGHL:HGBDAFLE,ABDEFGIJ:EGBDAFIJ,ABDEFGIK:EGBDAFIK,ABDEFGIL:EGBDAFLI,ABDEFGJK:EGBDAFJK,ABDEFGJL:EGBDAFLJ,ABDEFGKL:EGBDAFLK,ABDEFHIJ:HJBDAFEI,ABDEFHIK:HEBDAFIK,ABDEFHIL:HEBDAFLI,ABDEFHJK:HJBDAFEK,ABDEFHJL:HJBDAFLE,ABDEFHKL:HEBDAFLK,ABDEFIJK:EJBDAFIK,ABDEFIJL:EJBDAFLI,ABDEFIKL:EIBDAFLK,ABDEFJKL:EJBDAFLK,ABDEGHIJ:HJBDAGEI,ABDEGHIK:EGBDAHIK,ABDEGHIL:EGBDAHLI,ABDEGHJK:HJBDAGEK,ABDEGHJL:HJBDAGLE,ABDEGHKL:EGBDAHLK,ABDEGIJK:EJBDAGIK,ABDEGIJL:EJBDAGLI,ABDEGIKL:EGBAIDLK,ABDEGJKL:EJBDAGLK,ABDEHIJK:EJBDAHIK,ABDEHIJL:EJBDAHLI,ABDEHIKL:EIBDAHLK,ABDEHJKL:EJBDAHLK,ABDEIJKL:EJBAIDLK,ABDFGHIJ:HGBDAFIJ,ABDFGHIK:HGBDAFIK,ABDFGHIL:HGBDAFLI,ABDFGHJK:HGBDAFJK,ABDFGHJL:HGBDAFLJ,ABDFGHKL:HGBDAFLK,ABDFGIJK:FJBDAGIK,ABDFGIJL:FJBDAGLI,ABDFGIKL:IGBDAFLK,ABDFGJKL:FJBDAGLK,ABDFHIJK:HJBDAFIK,ABDFHIJL:HJBDAFLI,ABDFHIKL:HIBDAFLK,ABDFHJKL:HJBDAFLK,ABDFIJKL:IJBDAFLK,ABDGHIJK:HJBDAGIK,ABDGHIJL:HJBDAGLI,ABDGHIKL:IGBDAHLK,ABDGHJKL:HJBDAGLK,ABDGIJKL:IJBDAGLK,ABDHIJKL:IJBDAHLK,ABEFGHIJ:HJBFAGEI,ABEFGHIK:EGBFAHIK,ABEFGHIL:EGBFAHLI,ABEFGHJK:HJBFAGEK,ABEFGHJL:HJBFAGLE,ABEFGHKL:EGBFAHLK,ABEFGIJK:EJBFAGIK,ABEFGIJL:EJBFAGLI,ABEFGIKL:EGBAIFLK,ABEFGJKL:EJBFAGLK,ABEFHIJK:EJBFAHIK,ABEFHIJL:EJBFAHLI,ABEFHIKL:EIBFAHLK,ABEFHJKL:EJBFAHLK,ABEFIJKL:EJBAIFLK,ABEGHIJK:EJBAHGIK,ABEGHIJL:EJBAHGLI,ABEGHIKL:EGBAIHLK,ABEGHJKL:EJBAHGLK,ABEGIJKL:EJBAIGLK,ABEHIJKL:EJBAIHLK,ABFGHIJK:HJBFAGIK,ABFGHIJL:HJBFAGLI,ABFGHIKL:HGBAIFLK,ABFGHJKL:HJBFAGLK,ABFGIJKL:IJBFAGLK,ABFHIJKL:HJBAIFLK,ABGHIJKL:HJBAIGLK,ACDEFGHI:HGECAFDI,ACDEFGHJ:HGJCAFDE,ACDEFGHK:HGECAFDK,ACDEFGHL:HGFCADLE,ACDEFGIJ:CGJDAFEI,ACDEFGIK:CGEDAFIK,ACDEFGIL:CGEDAFLI,ACDEFGJK:CGJDAFEK,ACDEFGJL:CGJDAFLE,ACDEFGKL:CGEDAFLK,ACDEFHIJ:HJECAFDI,ACDEFHIK:HEFCADIK,ACDEFHIL:HEFCADLI,ACDEFHJK:HJECAFDK,ACDEFHJL:HJFCADLE,ACDEFHKL:HEFCADLK,ACDEFIJK:CJEDAFIK,ACDEFIJL:CJEDAFLI,ACDEFIKL:CEIDAFLK,ACDEFJKL:CJEDAFLK,ACDEGHIJ:HGJCADEI,ACDEGHIK:HGECADIK,ACDEGHIL:HGECADLI,ACDEGHJK:HGJCADEK,ACDEGHJL:HGJCADLE,ACDEGHKL:HGECADLK,ACDEGIJK:EGJCADIK,ACDEGIJL:EGJCADLI,ACDEGIKL:EGICADLK,ACDEGJKL:EGJCADLK,ACDEHIJK:HJECADIK,ACDEHIJL:HJECADLI,ACDEHIKL:HEICADLK,ACDEHJKL:HJECADLK,ACDEIJKL:EJICADLK,ACDFGHIJ:HGJCAFDI,ACDFGHIK:HGFCADIK,ACDFGHIL:HGFCADLI,ACDFGHJK:HGJCAFDK,ACDFGHJL:CGJDAFLH,ACDFGHKL:HGFCADLK,ACDFGIJK:CGJDAFIK,ACDFGIJL:CGJDAFLI,ACDFGIKL:CGIDAFLK,ACDFGJKL:CGJDAFLK,ACDFHIJK:HJFCADIK,ACDFHIJL:HJFCADLI,ACDFHIKL:HFICADLK,ACDFHJKL:HJFCADLK,ACDFIJKL:CJIDAFLK,ACDGHIJK:HGJCADIK,ACDGHIJL:HGJCADLI,ACDGHIKL:HGICADLK,ACDGHJKL:HGJCADLK,ACDGIJKL:IGJCADLK,ACDHIJKL:HJICADLK,ACEFGHIJ:HGJCAFEI,ACEFGHIK:HGECAFIK,ACEFGHIL:HGECAFLI,ACEFGHJK:HGJCAFEK,ACEFGHJL:HGJCAFLE,ACEFGHKL:HGECAFLK,ACEFGIJK:EGJCAFIK,ACEFGIJL:EGJCAFLI,ACEFGIKL:EGICAFLK,ACEFGJKL:EGJCAFLK,ACEFHIJK:HJECAFIK,ACEFHIJL:HJECAFLI,ACEFHIKL:HEICAFLK,ACEFHJKL:HJECAFLK,ACEFIJKL:EJICAFLK,ACEGHIJK:EGJCAHIK,ACEGHIJL:EGJCAHLI,ACEGHIKL:EGICAHLK,ACEGHJKL:EGJCAHLK,ACEGIJKL:EJICAGLK,ACEHIJKL:EJICAHLK,ACFGHIJK:HGJCAFIK,ACFGHIJL:HGJCAFLI,ACFGHIKL:HGICAFLK,ACFGHJKL:HGJCAFLK,ACFGIJKL:IGJCAFLK,ACFHIJKL:HJICAFLK,ACGHIJKL:HJICAGLK,ADEFGHIJ:HGJDAFEI,ADEFGHIK:HGEDAFIK,ADEFGHIL:HGEDAFLI,ADEFGHJK:HGJDAFEK,ADEFGHJL:HGJDAFLE,ADEFGHKL:HGEDAFLK,ADEFGIJK:EGJDAFIK,ADEFGIJL:EGJDAFLI,ADEFGIKL:EGIDAFLK,ADEFGJKL:EGJDAFLK,ADEFHIJK:HJEDAFIK,ADEFHIJL:HJEDAFLI,ADEFHIKL:HEIDAFLK,ADEFHJKL:HJEDAFLK,ADEFIJKL:EJIDAFLK,ADEGHIJK:EGJDAHIK,ADEGHIJL:EGJDAHLI,ADEGHIKL:EGIDAHLK,ADEGHJKL:EGJDAHLK,ADEGIJKL:EJIDAGLK,ADEHIJKL:EJIDAHLK,ADFGHIJK:HGJDAFIK,ADFGHIJL:HGJDAFLI,ADFGHIKL:HGIDAFLK,ADFGHJKL:HGJDAFLK,ADFGIJKL:IGJDAFLK,ADFHIJKL:HJIDAFLK,ADGHIJKL:HJIDAGLK,AEFGHIJK:EGJFAHIK,AEFGHIJL:EGJFAHLI,AEFGHIKL:EGIFAHLK,AEFGHJKL:EGJFAHLK,AEFGIJKL:EJIFAGLK,AEFHIJKL:EJIFAHLK,AEGHIJKL:EJIAHGLK,AFGHIJKL:HJIFAGLK,BCDEFGHI:CGBDHFEI,BCDEFGHJ:HGBCJFDE,BCDEFGHK:CGBDHFEK,BCDEFGHL:CGBDHFLE,BCDEFGIJ:CGBDJFEI,BCDEFGIK:CGBDEFIK,BCDEFGIL:CGBDEFLI,BCDEFGJK:CGBDJFEK,BCDEFGJL:CGBDJFLE,BCDEFGKL:CGBDEFLK,BCDEFHIJ:CJBDHFEI,BCDEFHIK:CEBDHFIK,BCDEFHIL:CEBDHFLI,BCDEFHJK:CJBDHFEK,BCDEFHJL:CJBDHFLE,BCDEFHKL:CEBDHFLK,BCDEFIJK:CJBDEFIK,BCDEFIJL:CJBDEFLI,BCDEFIKL:CEBDIFLK,BCDEFJKL:CJBDEFLK,BCDEGHIJ:HGBCJDEI,BCDEGHIK:EGBCHDIK,BCDEGHIL:EGBCHDLI,BCDEGHJK:HGBCJDEK,BCDEGHJL:HGBCJDLE,BCDEGHKL:EGBCHDLK,BCDEGIJK:EGBCJDIK,BCDEGIJL:EGBCJDLI,BCDEGIKL:EGBCIDLK,BCDEGJKL:EGBCJDLK,BCDEHIJK:EJBCHDIK,BCDEHIJL:EJBCHDLI,BCDEHIKL:EIBCHDLK,BCDEHJKL:EJBCHDLK,BCDEIJKL:EJBCIDLK,BCDFGHIJ:HGBCJFDI,BCDFGHIK:CGBDHFIK,BCDFGHIL:CGBDHFLI,BCDFGHJK:HGBCJFDK,BCDFGHJL:CGBDHFLJ,BCDFGHKL:CGBDHFLK,BCDFGIJK:CGBDJFIK,BCDFGIJL:CGBDJFLI,BCDFGIKL:CGBDIFLK,BCDFGJKL:CGBDJFLK,BCDFHIJK:CJBDHFIK,BCDFHIJL:CJBDHFLI,BCDFHIKL:CIBDHFLK,BCDFHJKL:CJBDHFLK,BCDFIJKL:CJBDIFLK,BCDGHIJK:HGBCJDIK,BCDGHIJL:HGBCJDLI,BCDGHIKL:HGBCIDLK,BCDGHJKL:HGBCJDLK,BCDGIJKL:IGBCJDLK,BCDHIJKL:HJBCIDLK,BCEFGHIJ:HGBCJFEI,BCEFGHIK:EGBCHFIK,BCEFGHIL:EGBCHFLI,BCEFGHJK:HGBCJFEK,BCEFGHJL:HGBCJFLE,BCEFGHKL:EGBCHFLK,BCEFGIJK:EGBCJFIK,BCEFGIJL:EGBCJFLI,BCEFGIKL:EGBCIFLK,BCEFGJKL:EGBCJFLK,BCEFHIJK:EJBCHFIK,BCEFHIJL:EJBCHFLI,BCEFHIKL:EIBCHFLK,BCEFHJKL:EJBCHFLK,BCEFIJKL:EJBCIFLK,BCEGHIJK:EJBCHGIK,BCEGHIJL:EJBCHGLI,BCEGHIKL:EGBCIHLK,BCEGHJKL:EJBCHGLK,BCEGIJKL:EJBCIGLK,BCEHIJKL:EJBCIHLK,BCFGHIJK:HGBCJFIK,BCFGHIJL:HGBCJFLI,BCFGHIKL:HGBCIFLK,BCFGHJKL:HGBCJFLK,BCFGIJKL:IGBCJFLK,BCFHIJKL:HJBCIFLK,BCGHIJKL:HJBCIGLK,BDEFGHIJ:HGBDJFEI,BDEFGHIK:EGBDHFIK,BDEFGHIL:EGBDHFLI,BDEFGHJK:HGBDJFEK,BDEFGHJL:HGBDJFLE,BDEFGHKL:EGBDHFLK,BDEFGIJK:EGBDJFIK,BDEFGIJL:EGBDJFLI,BDEFGIKL:EGBDIFLK,BDEFGJKL:EGBDJFLK,BDEFHIJK:EJBDHFIK,BDEFHIJL:EJBDHFLI,BDEFHIKL:EIBDHFLK,BDEFHJKL:EJBDHFLK,BDEFIJKL:EJBDIFLK,BDEGHIJK:EJBDHGIK,BDEGHIJL:EJBDHGLI,BDEGHIKL:EGBDIHLK,BDEGHJKL:EJBDHGLK,BDEGIJKL:EJBDIGLK,BDEHIJKL:EJBDIHLK,BDFGHIJK:HGBDJFIK,BDFGHIJL:HGBDJFLI,BDFGHIKL:HGBDIFLK,BDFGHJKL:HGBDJFLK,BDFGIJKL:IGBDJFLK,BDFHIJKL:HJBDIFLK,BDGHIJKL:HJBDIGLK,BEFGHIJK:EJBFHGIK,BEFGHIJL:EJBFHGLI,BEFGHIKL:EGBFIHLK,BEFGHJKL:EJBFHGLK,BEFGIJKL:EJBFIGLK,BEFHIJKL:EJBFIHLK,BEGHIJKL:EJIBHGLK,BFGHIJKL:HJBFIGLK,CDEFGHIJ:CGJDHFEI,CDEFGHIK:CGEDHFIK,CDEFGHIL:CGEDHFLI,CDEFGHJK:CGJDHFEK,CDEFGHJL:CGJDHFLE,CDEFGHKL:CGEDHFLK,CDEFGIJK:CGEDJFIK,CDEFGIJL:CGEDJFLI,CDEFGIKL:CGEDIFLK,CDEFGJKL:CGEDJFLK,CDEFHIJK:CJEDHFIK,CDEFHIJL:CJEDHFLI,CDEFHIKL:CEIDHFLK,CDEFHJKL:CJEDHFLK,CDEFIJKL:CJEDIFLK,CDEGHIJK:EGJCHDIK,CDEGHIJL:EGJCHDLI,CDEGHIKL:EGICHDLK,CDEGHJKL:EGJCHDLK,CDEGIJKL:EGICJDLK,CDEHIJKL:EJICHDLK,CDFGHIJK:CGJDHFIK,CDFGHIJL:CGJDHFLI,CDFGHIKL:CGIDHFLK,CDFGHJKL:CGJDHFLK,CDFGIJKL:CGIDJFLK,CDFHIJKL:CJIDHFLK,CDGHIJKL:HGICJDLK,CEFGHIJK:EGJCHFIK,CEFGHIJL:EGJCHFLI,CEFGHIKL:EGICHFLK,CEFGHJKL:EGJCHFLK,CEFGIJKL:EGICJFLK,CEFHIJKL:EJICHFLK,CEGHIJKL:EJICHGLK,CFGHIJKL:HGICJFLK,DEFGHIJK:EGJDHFIK,DEFGHIJL:EGJDHFLI,DEFGHIKL:EGIDHFLK,DEFGHJKL:EGJDHFLK,DEFGIJKL:EGIDJFLK,DEFHIJKL:EJIDHFLK,DEGHIJKL:EJIDHGLK,DFGHIJKL:HGIDJFLK,EFGHIJKL:EJIFHGLK"
+
+@st.cache_data
+def load_official_fifa_matrix():
+    matrix = {}
+    winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
+    for item in COMPRESSED_FIFA_MATRIX.split(','):
+        if ":" in item:
+            k, v = item.split(':')
+            matrix[k] = {winners[i]: v[i] for i in range(8)}
+    return matrix
+
+# --- 2. CONFIGURAZIONE E GRAFICA (TEMA FIFA 2026) ---
 st.set_page_config(
     page_title="FIFA World Cup 2026 Contest", 
     layout="wide", 
@@ -207,7 +220,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. INIZIALIZZAZIONE MEMORIA E GESTIONE ADMIN ---
+# --- 3. INIZIALIZZAZIONE MEMORIA E GESTIONE ADMIN ---
 if "initialized" not in st.session_state:
     for i in range(72):
         st.session_state[f"h_{i}"] = 0
@@ -242,7 +255,7 @@ if st.session_state.get("admin_auth") == "mondiali2026":
 
 is_admin = st.session_state["is_admin"]
 
-# --- 3. RANKING E DATI ---
+# --- 4. RANKING E DATI ---
 RANKING = {
     "Spagna": 1, "Argentina": 2, "Francia": 3, "Inghilterra": 4, "Brasile": 5, "Portogallo": 6, "Olanda": 7, "Belgio": 8,
     "Germania": 9, "Croazia": 10, "Marocco": 11, "Colombia": 13, "Italia": 13, "USA": 14, "Messico": 15, "Uruguay": 16,
@@ -294,7 +307,7 @@ def get_flag(t):
     }
     return f"https://flagcdn.com/w160/{m.get(t, 'un')}.png"
 
-# --- 4. CONNESSIONE E LOGICA ---
+# --- 5. CONNESSIONE E LOGICA ---
 def get_gspread_client():
     conf = json.loads(st.secrets["service_account"])
     creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -311,20 +324,16 @@ def safe_json_parse(val):
 
 def force_int(val):
     try:
-        if val is None: 
-            return None
+        if val is None: return None
         s = str(val).strip().lower()
-        if s == "" or s == "none" or s == "null": 
-            return None
+        if s == "" or s == "none" or s == "null": return None
         return int(float(s))
-    except: 
-        return None
+    except: return None
 
 def carica_dati_utente_da_sheets(nick):
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(ID_DEL_FOGLIO)
-        
         try: ws = sh.worksheet("Pronostici")
         except: return False
             
@@ -387,7 +396,6 @@ def carica_dati_paracadute():
         sh = gc.open_by_key(ID_DEL_FOGLIO)
         ws_real = sh.worksheet("RisultatiReali")
         dati_reali = ws_real.get_all_values()
-        
         for row in reversed(dati_reali):
             if len(row) >= 2:
                 data = safe_json_parse(row[1])
@@ -395,13 +403,11 @@ def carica_dati_paracadute():
                     gironi_data = data.get("Gironi", data)
                     bracket_data = data.get("Bracket", {})
                     st.session_state["adm_top_scorer"] = data.get("TopScorer", "")
-                    
                     for i, m in enumerate(MATCHES):
                         key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
                         if key_str in gironi_data:
                             st.session_state[f"adm_h_{i}"] = force_int(gironi_data[key_str][0])
                             st.session_state[f"adm_a_{i}"] = force_int(gironi_data[key_str][1])
-                            
                     for k, v in bracket_data.items(): st.session_state[f"adm_{k}"] = v
                     break
     except Exception: pass
@@ -415,12 +421,9 @@ def get_32_qualifiers(gironi_dict):
         if isinstance(vals, list) and len(vals) >= 2:
             h = force_int(vals[0]); a = force_int(vals[1])
             if h is not None and a is not None:
-                stats[m['gr']][m['h']]["GF"] += h
-                stats[m['gr']][m['a']]["GF"] += a
-                stats[m['gr']][m['h']]["DR"] += (h - a)
-                stats[m['gr']][m['a']]["DR"] += (a - h)
-                stats[m['gr']][m['h']]["Played"] += 1
-                stats[m['gr']][m['a']]["Played"] += 1
+                stats[m['gr']][m['h']]["GF"] += h; stats[m['gr']][m['a']]["GF"] += a
+                stats[m['gr']][m['h']]["DR"] += (h - a); stats[m['gr']][m['a']]["DR"] += (a - h)
+                stats[m['gr']][m['h']]["Played"] += 1; stats[m['gr']][m['a']]["Played"] += 1
                 if h > a: stats[m['gr']][m['h']]["Pt"] += 3
                 elif a > h: stats[m['gr']][m['a']]["Pt"] += 3
                 else: stats[m['gr']][m['h']]["Pt"] += 1; stats[m['gr']][m['a']]["Pt"] += 1
@@ -591,34 +594,7 @@ def calcola_classifiche(prefisso=""):
     else: migliori_terze = []
     return rankings_finali, migliori_terze, stats, df_terze
 
-@st.cache_data(ttl=3600)
-def load_fifa_matrix():
-    matrix_list = []
-    try:
-        df = pd.read_csv("tabula-ThirdPlacesGroup.csv", sep=";")
-        if len(df.columns) < 8:
-            df = pd.read_csv("tabula-ThirdPlacesGroup.csv", sep=",")
-            
-        for idx, row in df.iterrows():
-            mapping = {}
-            teams = set()
-            for col in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]:
-                if col in df.columns:
-                    val = str(row[col]).strip().upper()
-                    val = val.replace("31", "3I") 
-                    val = val.replace("30", "3D") 
-                    val = val.replace("3l", "3L")
-                    
-                    if val.startswith("3") and len(val) == 2:
-                        t = val[1]
-                        mapping[col] = t
-                        teams.add(t)
-            if len(teams) >= 6: 
-                matrix_list.append((teams, mapping))
-    except Exception:
-        pass
-    return matrix_list
-
+# --- NUOVO ASSEGNATORE DELLE TERZE CLASSIFICATE (Tramite Matrice Decodificata) ---
 def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
@@ -631,47 +607,17 @@ def get_matchups(ranks, df_terze):
         g_to_s = {t[1]: t[0] for t in terze_tuples}
         
         winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
-        t_assigned = {w: "TBD" for w in winners}
+        key = "".join(sorted(gironi_terze))
         
-        matrix_list = load_fifa_matrix()
-        target_set = set(gironi_terze)
-        best_mapping = None
-        max_overlap = 0
+        # Invochiamo la Matrice Ufficiale decodificata
+        matrix = load_official_fifa_matrix()
         
-        if matrix_list:
-            for csv_teams, mapping in matrix_list:
-                overlap = len(csv_teams & target_set)
-                if overlap > max_overlap:
-                    max_overlap = overlap
-                    best_mapping = mapping
-                if max_overlap == 8:
-                    break 
-        
-        # --- PANNELLO SPIA VISIVO ---
-        stringa_gironi = "".join(sorted(gironi_terze))
-        if best_mapping and max_overlap == 8:
-            st.success(f"✅ **CSV LETTO PERFETTAMENTE!** Trovata l'Opzione esatta per le terze: {stringa_gironi}")
-        elif best_mapping and max_overlap >= 6:
-            st.warning(f"⚠️ **CSV LETTO MA CON BUCHI (Errore OCR):** Trovate solo {max_overlap}/8 squadre per i gironi {stringa_gironi}. L'incrocio potrebbe essere impreciso.")
+        if key in matrix:
+            # Match perfetto nella matrice FIFA
+            t_assigned = {w: g_to_s.get(matrix[key][w], "TBD") for w in winners}
+            st.success(f"✅ **MATRICE FIFA APPLICATA PERFETTAMENTE!** Trovato incrocio esatto per le terze: {key}")
         else:
-            st.error(f"🔴 **ATTENZIONE:** Il file CSV NON è stato letto o non contiene dati validi per i gironi {stringa_gironi}. Algoritmo di emergenza attivato.")
-        # -----------------------------
-
-        if best_mapping and max_overlap >= 6:
-            assigned_teams = set()
-            for w in winners:
-                if w in best_mapping and best_mapping[w] in target_set:
-                    t_letter = best_mapping[w]
-                    t_assigned[w] = g_to_s.get(t_letter, "TBD")
-                    assigned_teams.add(t_letter)
-            
-            missing_letters = list(target_set - assigned_teams)
-            missing_columns = [w for w in winners if t_assigned[w] == "TBD"]
-            
-            for i in range(min(len(missing_letters), len(missing_columns))):
-                t_assigned[missing_columns[i]] = g_to_s.get(missing_letters[i], "TBD")
-                
-        else:
+            # Fallback Matematico d'emergenza (Non dovrebbe mai attivarsi con la nuova matrice)
             allowed = {
                 "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
                 "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
@@ -688,22 +634,19 @@ def get_matchups(ranks, df_terze):
                         if res: return res
                         del current[w]
                 return None
-            
             assignment = backtrack(0, {})
             if not assignment:
                 assignment = {}
                 rem = gironi_terze.copy()
                 for w in winners:
-                    assigned = False
                     for g in allowed[w]:
                         if g in rem:
                             assignment[w] = g
                             rem.remove(g)
-                            assigned = True
                             break
-                    if not assigned and rem: assignment[w] = rem.pop(0)
-            
+                    if w not in assignment and rem: assignment[w] = rem.pop(0)
             t_assigned = {w: g_to_s.get(assignment.get(w, ""), "TBD") for w in winners}
+            st.error(f"🔴 **ATTENZIONE:** Matrice fallita per {key}. Attivato fallback matematico.")
     else:
         t_assigned = {w: "TBD" for w in ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]}
 
