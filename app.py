@@ -472,6 +472,21 @@ def get_admin_dashboard_data():
                         reali_bracket = data.get("Bracket", {})
                         break
 
+        # --- CONTEGGIO PARTITE GIRONI COMPLETATE ---
+        partite_reali_giocate = 0
+        if reali_dict:
+            for i, m in enumerate(MATCHES):
+                key_str = f"G_{m['gr']} {m['h']}-{m['a']}"
+                key_num = str(i)
+                r_vals = reali_dict.get(key_str, reali_dict.get(key_num))
+                if isinstance(r_vals, list) and len(r_vals) >= 2:
+                    if force_int(r_vals[0]) is not None and force_int(r_vals[1]) is not None:
+                        partite_reali_giocate += 1
+        
+        # Sblocca i punti del tabellone SOLO se tutte le 72 partite sono state inserite
+        fase_gironi_completata = (partite_reali_giocate == 72)
+        # -------------------------------------------
+
         adm_32 = get_32_qualifiers(reali_dict) if reali_dict else []
         adm_16 = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("S") and reali_bracket.get(k) not in ["TBD", None]]
         adm_8  = [reali_bracket.get(k) for k in BRACKET_KEYS if k.startswith("O") and reali_bracket.get(k) not in ["TBD", None]]
@@ -527,15 +542,20 @@ def get_admin_dashboard_data():
             usr_fin = usr_fin[0] if usr_fin else ""
             
             usr_third = user_bracket.get("THIRD") if user_bracket.get("THIRD") != "TBD" else ""
-            pt_terzo = 150 if usr_third and adm_third and usr_third == adm_third else 0
             
-            pt_32 = len(set(usr_32) & set(adm_32)) * 25
-            pt_16 = len(set(usr_16) & set(adm_16)) * 35
-            pt_8 = len(set(usr_8) & set(adm_8)) * 50
-            pt_4 = len(set(usr_4) & set(adm_4)) * 80
-            pt_2 = len(set(usr_2) & set(adm_2)) * 120
-            pt_finalista = 180 if usr_fin and adm_fin and usr_fin == adm_fin else 0
-            pt_vincitore = 250 if usr_win and adm_win and usr_win == adm_win else 0
+            # --- ASSEGNAZIONE PUNTI FASE FINALE SOLO SE GIRONI COMPLETI ---
+            pt_32 = pt_16 = pt_8 = pt_4 = pt_2 = pt_finalista = pt_vincitore = pt_terzo = 0
+            
+            if fase_gironi_completata:
+                pt_terzo = 150 if usr_third and adm_third and usr_third == adm_third else 0
+                pt_32 = len(set(usr_32) & set(adm_32)) * 25
+                pt_16 = len(set(usr_16) & set(adm_16)) * 35
+                pt_8 = len(set(usr_8) & set(adm_8)) * 50
+                pt_4 = len(set(usr_4) & set(adm_4)) * 80
+                pt_2 = len(set(usr_2) & set(adm_2)) * 120
+                pt_finalista = 180 if usr_fin and adm_fin and usr_fin == adm_fin else 0
+                pt_vincitore = 250 if usr_win and adm_win and usr_win == adm_win else 0
+            # --------------------------------------------------------------
             
             pt_top_scorer = 0
             if reali_top_scorer and user_top_scorer and str(reali_top_scorer).strip().lower() == str(user_top_scorer).strip().lower():
@@ -594,7 +614,7 @@ def calcola_classifiche(prefisso=""):
     else: migliori_terze = []
     return rankings_finali, migliori_terze, stats, df_terze
 
-# --- NUOVO ASSEGNATORE DELLE TERZE CLASSIFICATE (Tramite Matrice Decodificata) ---
+# --- ASSEGNATORE DELLE TERZE CLASSIFICATE (Tramite Matrice Decodificata) ---
 def get_matchups(ranks, df_terze):
     def s_t(g, pos):
         try: return ranks[g][pos]
@@ -609,15 +629,12 @@ def get_matchups(ranks, df_terze):
         winners = ["1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"]
         key = "".join(sorted(gironi_terze))
         
-        # Invochiamo la Matrice Ufficiale decodificata
         matrix = load_official_fifa_matrix()
         
         if key in matrix:
-            # Match perfetto nella matrice FIFA
             t_assigned = {w: g_to_s.get(matrix[key][w], "TBD") for w in winners}
             st.success(f"✅ **MATRICE FIFA APPLICATA PERFETTAMENTE!** Trovato incrocio esatto per le terze: {key}")
         else:
-            # Fallback Matematico d'emergenza (Non dovrebbe mai attivarsi con la nuova matrice)
             allowed = {
                 "1A": ["C", "E", "F", "H", "I"], "1B": ["E", "F", "G", "I", "J"],
                 "1D": ["B", "E", "F", "I", "J"], "1E": ["A", "B", "C", "D", "F"],
